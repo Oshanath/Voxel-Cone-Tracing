@@ -1,58 +1,98 @@
-#define _USE_MATH_DEFINES
-#include <ogl.h>
 #include <application.h>
-#include <mesh.h>
 #include <camera.h>
 #include <material.h>
-#include <memory>
-#include <iostream>
-#include <stack>
-#include <random>
-#include <chrono>
-#include <random>
-#include <fstream>
+#include <mesh.h>
+#include <ogl.h>
+#include <profiler.h>
+#include <assimp/scene.h>
 
-#define CAMERA_FAR_PLANE 1000.0f
+// Embedded vertex shader source.
+const char* g_sample_vs_src = R"(
+layout (location = 0) in vec4 VS_IN_Position;
+layout (location = 1) in vec4 VS_IN_TexCoord;
+layout (location = 2) in vec4 VS_IN_Normal;
+layout (location = 3) in vec4 VS_IN_Tangent;
+layout (location = 4) in vec4 VS_IN_Bitangent;
+layout (std140) uniform Transforms //#binding 0
+{ 
+	mat4 model;
+	mat4 view;
+	mat4 projection;
+};
+out vec3 PS_IN_FragPos;
+out vec3 PS_IN_Normal;
+out vec2 PS_IN_TexCoord;
+void main()
+{
+    vec4 position = model * vec4(VS_IN_Position.xyz, 1.0);
+	PS_IN_FragPos = position.xyz;
+	PS_IN_Normal = mat3(model) * VS_IN_Normal.xyz;
+	PS_IN_TexCoord = VS_IN_TexCoord.xy;
+    gl_Position = projection * view * position;
+}
+)";
 
-struct GlobalUniforms
+// Embedded fragment shader source.
+const char* g_sample_fs_src = R"(
+precision mediump float;
+out vec4 PS_OUT_Color;
+in vec3 PS_IN_FragPos;
+in vec3 PS_IN_Normal;
+in vec2 PS_IN_TexCoord;
+uniform sampler2D s_Diffuse; //#slot 0
+void main()
+{
+	vec3 light_pos = vec3(-200.0, 200.0, 0.0);
+	vec3 n = normalize(PS_IN_Normal);
+	vec3 l = normalize(light_pos - PS_IN_FragPos);
+	float lambert = max(0.0f, dot(n, l));
+    vec3 diffuse = texture(s_Diffuse, PS_IN_TexCoord).xyz;// + vec3(1.0);
+	vec3 ambient = diffuse * 0.03;
+	vec3 color = diffuse * lambert + ambient;
+
+    // HDR tonemapping
+    color = color / (color + vec3(1.0));
+    // gamma correct
+    color = pow(color, vec3(1.0 / 2.2));
+
+    PS_OUT_Color = vec4(color, 1.0);
+}
+)";
+
+// Uniform buffer data structure.
+struct Transforms
 {
     DW_ALIGNED(16)
-    glm::mat4 view_proj;
+    glm::mat4 model;
     DW_ALIGNED(16)
-    glm::mat4 inv_view_proj;
+    glm::mat4 view;
     DW_ALIGNED(16)
-    glm::vec4 cam_pos;
+    glm::mat4 projection;
 };
 
-class VolumetricClouds : public dw::Application
+class Sample : public dw::Application
 {
 protected:
     // -----------------------------------------------------------------------------------------------------------------------------------
 
     bool init(int argc, const char* argv[]) override
     {
-        m_sun_angle = glm::radians(-58.0f);
-
-        // Create camera.
-        create_camera();
+        // Set initial GPU states.
+        set_initial_states();
 
         // Create GPU resources.
         if (!create_shaders())
             return false;
 
-        if (!create_textures())
-            return false;
-
         if (!create_uniform_buffer())
             return false;
 
-        // Load scene.
-        if (!load_scene())
+        // Load mesh.
+        if (!load_mesh())
             return false;
 
-        // Generate noise textures.
-        generate_shape_noise_texture();
-        generate_detail_noise_texture();
+        // Create camera.
+        create_camera();
 
         return true;
     }
@@ -61,51 +101,41 @@ protected:
 
     void update(double delta) override
     {
-        if (m_debug_gui)
-            debug_gui();
+        DW_SCOPED_SAMPLE("update");
+
+        // Render profiler.
+        dw::profiler::ui();
 
         // Update camera.
-        update_camera();
+        m_main_camera->update();
 
+        // Update uniforms.
         update_uniforms();
 
-        render_scene();
-        render_clouds();
-        tonemap();
+        // Render.
+        render();
     }
 
     // -----------------------------------------------------------------------------------------------------------------------------------
 
-    void debug_gui()
+    void shutdown() override
     {
-        ImGui::SliderAngle("Sun Angle", &m_sun_angle, 0.0f, -180.0f);
+        // Unload assets.
+        m_mesh.reset();
+    }
 
-        ImGui::InputFloat("Cloud Min Height", &m_cloud_min_height);
-        ImGui::InputFloat("Cloud Max Height", &m_cloud_max_height);
-        ImGui::SliderFloat("Shape Noise Scale", &m_shape_noise_scale, 0.1f, 1.0f);
-        ImGui::SliderFloat("Detail Noise Scale", &m_detail_noise_scale, 0.0f, 100.0f);
-        ImGui::SliderFloat("Detail Noise Modifier", &m_detail_noise_modifier, 0.0f, 1.0f);
-        ImGui::SliderFloat("Turbulence Noise Scale", &m_turbulence_noise_scale, 0.0f, 100.0f);
-        ImGui::SliderFloat("Turbulence Amount", &m_turbulence_amount, 0.0f, 100.0f);
-        ImGui::SliderFloat("Cloud Coverage", &m_cloud_coverage, 0.0f, 1.0f);
-        ImGui::SliderFloat("Precipitation", &m_precipitation, 1.0f, 2.5f);
-        ImGui::SliderFloat("Ambient Factor", &m_ambient_light_factor, 0.0f, 1.0f);
-        ImGui::SliderFloat("Sun Light Factor", &m_sun_light_factor, 0.0f, 10.0f);
+    // -----------------------------------------------------------------------------------------------------------------------------------
 
-        ImGui::SliderAngle("Wind Angle", &m_wind_angle, 0.0f, -180.0f);
-        ImGui::SliderFloat("Wind Speed", &m_wind_speed, 0.0f, 200.0f);
-        ImGui::InputFloat("Wind Shear Offset", &m_wind_shear_offset);
-        ImGui::ColorPicker3("Sun Color", &m_sun_color.x);
+    dw::AppSettings intial_app_settings() override
+    {
+        // Set custom settings here...
+        dw::AppSettings settings;
 
-        ImGui::InputFloat("Planet Radius", &m_planet_radius);
-        ImGui::SliderInt("Max Num Steps", &m_max_num_steps, 16, 256);
+        settings.width  = 1280;
+        settings.height = 720;
+        settings.title  = "Hello dwSampleFramework (OpenGL)";
 
-        ImGui::SliderFloat("Exposure", &m_exposure, 0.0f, 10.0f);
-
-        m_planet_center = glm::vec3(0.0f, -m_planet_radius, 0.0f);
-
-        m_light_direction = glm::normalize(glm::vec3(0.0f, sin(m_sun_angle), cos(m_sun_angle)));
-        m_wind_direction  = glm::normalize(glm::vec3(cos(m_wind_angle), sin(m_wind_angle), 0.0f));
+        return settings;
     }
 
     // -----------------------------------------------------------------------------------------------------------------------------------
@@ -113,83 +143,7 @@ protected:
     void window_resized(int width, int height) override
     {
         // Override window resized method to update camera projection.
-        m_main_camera->update_projection(60.0f, 1.0f, CAMERA_FAR_PLANE, float(m_width) / float(m_height));
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    void key_pressed(int code) override
-    {
-        // Handle forward movement.
-        if (code == GLFW_KEY_W)
-            m_heading_speed = m_camera_speed;
-        else if (code == GLFW_KEY_S)
-            m_heading_speed = -m_camera_speed;
-
-        // Handle sideways movement.
-        if (code == GLFW_KEY_A)
-            m_sideways_speed = -m_camera_speed;
-        else if (code == GLFW_KEY_D)
-            m_sideways_speed = m_camera_speed;
-
-        if (code == GLFW_KEY_SPACE)
-            m_mouse_look = true;
-
-        if (code == GLFW_KEY_G)
-            m_debug_gui = !m_debug_gui;
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    void key_released(int code) override
-    {
-        // Handle forward movement.
-        if (code == GLFW_KEY_W || code == GLFW_KEY_S)
-            m_heading_speed = 0.0f;
-
-        // Handle sideways movement.
-        if (code == GLFW_KEY_A || code == GLFW_KEY_D)
-            m_sideways_speed = 0.0f;
-
-        if (code == GLFW_KEY_SPACE)
-            m_mouse_look = false;
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    void mouse_pressed(int code) override
-    {
-        // Enable mouse look.
-        if (code == GLFW_MOUSE_BUTTON_RIGHT)
-            m_mouse_look = true;
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    void mouse_released(int code) override
-    {
-        // Disable mouse look.
-        if (code == GLFW_MOUSE_BUTTON_RIGHT)
-            m_mouse_look = false;
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-protected:
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    dw::AppSettings intial_app_settings() override
-    {
-        dw::AppSettings settings;
-
-        settings.maximized             = false;
-        settings.major_ver             = 4;
-        settings.width                 = 1920;
-        settings.height                = 1080;
-        settings.title                 = "Volumetric Clouds";
-        settings.enable_debug_callback = false;
-
-        return settings;
+        m_main_camera->update_projection(60.0f, 0.1f, 1000.0f, float(m_width) / float(m_height));
     }
 
     // -----------------------------------------------------------------------------------------------------------------------------------
@@ -199,436 +153,142 @@ private:
 
     bool create_shaders()
     {
-        // Create general shaders
-        m_mesh_vs = dw::gl::Shader::create_from_file(GL_VERTEX_SHADER, "shader/mesh_vs.glsl");
-        m_mesh_fs = dw::gl::Shader::create_from_file(GL_FRAGMENT_SHADER, "shader/mesh_fs.glsl");
+        // Create shaders
+        m_vs = dw::gl::Shader::create(GL_VERTEX_SHADER, g_sample_vs_src);
+        m_fs = dw::gl::Shader::create(GL_FRAGMENT_SHADER, g_sample_fs_src);
 
-        if (!m_mesh_vs || !m_mesh_fs)
+        if (!m_vs || !m_fs)
         {
             DW_LOG_FATAL("Failed to create Shaders");
             return false;
         }
 
-        // Create general shader program
-        m_mesh_program = dw::gl::Program::create({ m_mesh_vs, m_mesh_fs });
+        // Create shader program
+        m_program = dw::gl::Program::create({ m_vs, m_fs });
 
-        if (!m_mesh_program)
+        if (!m_program)
         {
             DW_LOG_FATAL("Failed to create Shader Program");
             return false;
         }
 
-        // Create clouds shaders
-        m_triangle_vs = dw::gl::Shader::create_from_file(GL_VERTEX_SHADER, "shader/triangle_vs.glsl");
-        m_clouds_fs   = dw::gl::Shader::create_from_file(GL_FRAGMENT_SHADER, "shader/clouds_fs.glsl");
-
-        if (!m_triangle_vs || !m_clouds_fs)
-        {
-            DW_LOG_FATAL("Failed to create Shaders");
-            return false;
-        }
-
-        // Create general shader program
-        m_clouds_program = dw::gl::Program::create({ m_triangle_vs, m_clouds_fs });
-
-        if (!m_clouds_program)
-        {
-            DW_LOG_FATAL("Failed to create Shader Program");
-            return false;
-        }
-
-        m_tonemap_fs = dw::gl::Shader::create_from_file(GL_FRAGMENT_SHADER, "shader/tonemap_fs.glsl");
-
-        if (!m_tonemap_fs)
-        {
-            DW_LOG_FATAL("Failed to create Shaders");
-            return false;
-        }
-
-        // Create general shader program
-        m_tonemap_program = dw::gl::Program::create({ m_triangle_vs, m_tonemap_fs });
-
-        if (!m_tonemap_program)
-        {
-            DW_LOG_FATAL("Failed to create Shader Program");
-            return false;
-        }
-
-        m_shape_noise_cs = dw::gl::Shader::create_from_file(GL_COMPUTE_SHADER, "shader/shape_noise_cs.glsl");
-
-        // Create general shader program
-        m_shape_noise_program = dw::gl::Program::create({ m_shape_noise_cs });
-
-        if (!m_shape_noise_program)
-        {
-            DW_LOG_FATAL("Failed to create Shader Program");
-            return false;
-        }
-
-        m_detail_noise_cs = dw::gl::Shader::create_from_file(GL_COMPUTE_SHADER, "shader/detail_noise_cs.glsl");
-
-        // Create general shader program
-        m_detail_noise_program = dw::gl::Program::create({ m_detail_noise_cs });
-
-        if (!m_detail_noise_program)
-        {
-            DW_LOG_FATAL("Failed to create Shader Program");
-            return false;
-        }
+        m_program->uniform_block_binding("Transforms", 0);
 
         return true;
     }
 
     // -----------------------------------------------------------------------------------------------------------------------------------
 
-    bool create_textures()
+    void set_initial_states()
     {
-        m_hdr_output_texture = dw::gl::Texture2D::create(m_width, m_height, 1, 1, 1, GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT);
-        m_hdr_output_texture->set_wrapping(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE);
-
-        m_depth_output_texture = dw::gl::Texture2D::create(m_width, m_height, 1, 1, 1, GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT, GL_FLOAT);
-        m_depth_output_texture->set_wrapping(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE);
-
-        m_hdr_output_framebuffer = dw::gl::Framebuffer::create({ m_hdr_output_texture }, m_depth_output_texture);
-
-        m_shape_noise_texture = dw::gl::Texture3D::create(128, 128, 128, -1, GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT);
-        m_shape_noise_texture->set_wrapping(GL_REPEAT, GL_REPEAT, GL_REPEAT);
-        m_shape_noise_texture->set_min_filter(GL_LINEAR_MIPMAP_LINEAR);
-
-        m_detail_noise_texture = dw::gl::Texture3D::create(32, 32, 32, -1, GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT);
-        m_detail_noise_texture->set_wrapping(GL_REPEAT, GL_REPEAT, GL_REPEAT);
-        m_detail_noise_texture->set_min_filter(GL_LINEAR_MIPMAP_LINEAR);
-
-        m_blue_noise_texture = dw::gl::Texture2D::create_from_file("texture/LDR_LLL1_0.png");
-        m_blue_noise_texture->set_wrapping(GL_REPEAT, GL_REPEAT, GL_REPEAT);
-
-        m_curl_noise_texture = dw::gl::Texture2D::create_from_file("texture/curlNoise.png");
-        m_curl_noise_texture->set_wrapping(GL_REPEAT, GL_REPEAT, GL_REPEAT);
-
-        return true;
+        glEnable(GL_DEPTH_TEST);
+        glCullFace(GL_BACK);
     }
 
     // -----------------------------------------------------------------------------------------------------------------------------------
 
     bool create_uniform_buffer()
     {
-        // Create uniform buffer for global data
-        m_global_ubo = dw::gl::Buffer::create(GL_UNIFORM_BUFFER, GL_MAP_WRITE_BIT, sizeof(GlobalUniforms));
+        // Create uniform buffer for matrix data
+        m_ubo = dw::gl::Buffer::create(GL_UNIFORM_BUFFER, GL_MAP_WRITE_BIT, sizeof(Transforms), nullptr);
 
         return true;
     }
 
     // -----------------------------------------------------------------------------------------------------------------------------------
 
-    bool load_scene()
+    bool load_mesh()
     {
-        m_placeholder_texture = dw::gl::Texture2D::create_from_file("texture/grid.png", true, true);
-
-        m_plane = dw::Mesh::load("mesh/plane.obj");
-
-        if (!m_plane)
-        {
-            DW_LOG_FATAL("Failed to load mesh: plane");
-            return false;
-        }
-
-        return true;
+        m_mesh = dw::Mesh::load("teapot.obj");
+        return m_mesh != nullptr;
     }
 
     // -----------------------------------------------------------------------------------------------------------------------------------
 
     void create_camera()
     {
-        m_main_camera = std::make_unique<dw::Camera>(60.0f, 1.0f, CAMERA_FAR_PLANE, float(m_width) / float(m_height), glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(-1.0f, 0.0, 0.0f));
-        m_main_camera->update();
+        m_main_camera = std::make_unique<dw::Camera>(
+            60.0f, 0.1f, 1000.0f, float(m_width) / float(m_height), glm::vec3(0.0f, 0.0f, 100.0f), glm::vec3(0.0f, 0.0, -1.0f));
     }
 
     // -----------------------------------------------------------------------------------------------------------------------------------
 
-    void generate_shape_noise_texture()
+    void render()
     {
-        m_shape_noise_program->use();
-        m_shape_noise_program->set_uniform("u_Size", (int)m_shape_noise_texture->width());
+        DW_SCOPED_SAMPLE("render");
 
-        m_shape_noise_texture->bind_image(0, 0, 0, GL_READ_WRITE, m_shape_noise_texture->internal_format());
-
-        const uint32_t TEXTURE_SIZE = m_shape_noise_texture->width();
-        const uint32_t NUM_THREADS  = 8;
-
-        glDispatchCompute(TEXTURE_SIZE / NUM_THREADS, TEXTURE_SIZE / NUM_THREADS, TEXTURE_SIZE / NUM_THREADS);
-
-        glFinish();
-
-        m_shape_noise_texture->generate_mipmaps();
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    void generate_detail_noise_texture()
-    {
-        m_detail_noise_program->use();
-        m_detail_noise_program->set_uniform("u_Size", (int)m_detail_noise_texture->width());
-
-        m_detail_noise_texture->bind_image(0, 0, 0, GL_READ_WRITE, m_detail_noise_texture->internal_format());
-
-        const uint32_t TEXTURE_SIZE = m_detail_noise_texture->width();
-        const uint32_t NUM_THREADS  = 8;
-
-        glDispatchCompute(TEXTURE_SIZE / NUM_THREADS, TEXTURE_SIZE / NUM_THREADS, TEXTURE_SIZE / NUM_THREADS);
-
-        glFinish();
-
-        m_detail_noise_texture->generate_mipmaps();
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    void render_mesh(dw::Mesh::Ptr mesh, glm::mat4 model)
-    {
-        if (m_mesh_program->set_uniform("s_Diffuse", 0))
-            m_placeholder_texture->bind(0);
-
-        m_mesh_program->set_uniform("u_LightDirection", m_light_direction);
-        m_mesh_program->set_uniform("u_Model", model);
-
-        // Bind vertex array.
-        mesh->mesh_vertex_array()->bind();
-
-        const auto& submeshes = mesh->sub_meshes();
-
-        for (uint32_t i = 0; i < submeshes.size(); i++)
-        {
-            const dw::SubMesh& submesh = submeshes[i];
-
-            // Issue draw call.
-            glDrawElementsBaseVertex(GL_TRIANGLES, submesh.index_count, GL_UNSIGNED_INT, (void*)(sizeof(unsigned int) * submesh.base_index), submesh.base_vertex);
-        }
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    void render_scene()
-    {
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LEQUAL);
-        glDisable(GL_BLEND);
-        glEnable(GL_CULL_FACE);
-        glCullFace(GL_BACK);
-
-        m_hdr_output_framebuffer->bind();
-        glViewport(0, 0, m_width, m_height);
-
-        glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
-        glClearDepth(1.0);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        // Bind shader program.
-        m_mesh_program->use();
-
-        // Bind uniform buffers.
-        m_global_ubo->bind_base(0);
-
-        // Draw scene.
-        render_mesh(m_plane, glm::mat4(1.0f));
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    void render_clouds()
-    {
-        m_clouds_program->use();
-
-        if (m_clouds_program->set_uniform("s_ShapeNoise", 0))
-            m_shape_noise_texture->bind(0);
-
-        if (m_clouds_program->set_uniform("s_DetailNoise", 1))
-            m_detail_noise_texture->bind(1);
-
-        if (m_clouds_program->set_uniform("s_BlueNoise", 2))
-            m_blue_noise_texture->bind(2);
-
-        if (m_clouds_program->set_uniform("s_CurlNoise", 3))
-            m_curl_noise_texture->bind(3);
-
-        float noise_scale = 0.00001f + m_shape_noise_scale * 0.0004f;
-
-        m_clouds_program->set_uniform("u_PlanetCenter", m_planet_center);
-        m_clouds_program->set_uniform("u_PlanetRadius", m_planet_radius);
-        m_clouds_program->set_uniform("u_CloudMinHeight", m_cloud_min_height);
-        m_clouds_program->set_uniform("u_CloudMaxHeight", m_cloud_max_height);
-        m_clouds_program->set_uniform("u_ShapeNoiseScale", noise_scale);
-        m_clouds_program->set_uniform("u_DetailNoiseScale", noise_scale * m_detail_noise_scale);
-        m_clouds_program->set_uniform("u_DetailNoiseModifier", m_detail_noise_modifier);
-        m_clouds_program->set_uniform("u_TurbulenceNoiseScale", noise_scale * m_turbulence_noise_scale);
-        m_clouds_program->set_uniform("u_TurbulenceAmount", m_turbulence_amount);
-        m_clouds_program->set_uniform("u_CloudCoverage", m_cloud_coverage);
-        m_clouds_program->set_uniform("u_WindDirection", m_wind_direction);
-        m_clouds_program->set_uniform("u_WindSpeed", m_wind_speed);
-        m_clouds_program->set_uniform("u_WindShearOffset", m_wind_shear_offset);
-        m_clouds_program->set_uniform("u_Time", static_cast<float>(glfwGetTime()));
-        m_clouds_program->set_uniform("u_MaxNumSteps", (float)m_max_num_steps);
-        m_clouds_program->set_uniform("u_LightStepLength", m_light_step_length);
-        m_clouds_program->set_uniform("u_LightConeRadius", m_light_cone_radius);
-        m_clouds_program->set_uniform("u_SunDir", -m_light_direction);
-        m_clouds_program->set_uniform("u_SunColor", m_sun_color);
-        m_clouds_program->set_uniform("u_CloudBaseColor", m_cloud_base_color);
-        m_clouds_program->set_uniform("u_CloudTopColor", m_cloud_top_color);
-        m_clouds_program->set_uniform("u_Precipitation", m_precipitation * 0.01f);
-        m_clouds_program->set_uniform("u_AmbientLightFactor", m_ambient_light_factor);
-        m_clouds_program->set_uniform("u_SunLightFactor", m_sun_light_factor);
-        m_clouds_program->set_uniform("u_HenyeyGreensteinGForward", m_henyey_greenstein_g_forward);
-        m_clouds_program->set_uniform("u_HenyeyGreensteinGBackward", m_henyey_greenstein_g_backward);
-
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    void tonemap()
-    {
+        // Bind framebuffer and set viewport.
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, m_width, m_height);
 
-        glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
-        glClearDepth(1.0);
+        // Clear default framebuffer.
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        m_tonemap_program->use();
+        // Bind shader program.
+        m_program->use();
 
-        if (m_tonemap_program->set_uniform("s_HDR", 0))
-            m_hdr_output_texture->bind(0);
+        // Bind uniform buffer.
+        m_ubo->bind_base(0);
 
-        m_tonemap_program->set_uniform("u_Exposure", m_exposure);
+        // Bind vertex array.
+        m_mesh->mesh_vertex_array()->bind();
 
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        // Set active texture unit uniform
+        m_program->set_uniform("s_Diffuse", 0);
+
+        const auto& submeshes = m_mesh->sub_meshes();
+
+        for (uint32_t i = 0; i < submeshes.size(); i++)
+        {
+            auto& submesh = submeshes[i];
+            auto& mat     = m_mesh->material(submesh.mat_idx);
+
+            // Bind texture.
+            if (mat->albedo_texture())
+                mat->albedo_texture()->bind(0);
+
+            // Issue draw call.
+            glDrawElementsBaseVertex(
+                GL_TRIANGLES, submesh.index_count, GL_UNSIGNED_INT, (void*)(sizeof(unsigned int) * submesh.base_index), submesh.base_vertex);
+        }
     }
 
     // -----------------------------------------------------------------------------------------------------------------------------------
 
     void update_uniforms()
     {
-        // Global
-        {
-            void* ptr = m_global_ubo->map(GL_WRITE_ONLY);
-            memcpy(ptr, &m_global_uniforms, sizeof(GlobalUniforms));
-            m_global_ubo->unmap();
-        }
-    }
+        DW_SCOPED_SAMPLE("update_uniforms");
 
-    // -----------------------------------------------------------------------------------------------------------------------------------
+        m_transforms.model      = glm::mat4(1.0f);
+        m_transforms.model      = glm::translate(m_transforms.model, glm::vec3(0.0f, -20.0f, 0.0f));
+        m_transforms.model      = glm::rotate(m_transforms.model, (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
+        m_transforms.model      = glm::scale(m_transforms.model, glm::vec3(0.6f));
+        m_transforms.view       = m_main_camera->m_view;
+        m_transforms.projection = m_main_camera->m_projection;
 
-    void update_transforms(dw::Camera* camera)
-    {
-        // Update camera matrices.
-        m_global_uniforms.view_proj     = camera->m_projection * camera->m_view;
-        m_global_uniforms.inv_view_proj = glm::inverse(camera->m_projection * camera->m_view);
-        m_global_uniforms.cam_pos       = glm::vec4(camera->m_position, 0.0f);
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------
-
-    void update_camera()
-    {
-        dw::Camera* current = m_main_camera.get();
-
-        float forward_delta = m_heading_speed * m_delta;
-        float right_delta   = m_sideways_speed * m_delta;
-
-        current->set_translation_delta(current->m_forward, forward_delta);
-        current->set_translation_delta(current->m_right, right_delta);
-
-        m_camera_x = m_mouse_delta_x * m_camera_sensitivity;
-        m_camera_y = m_mouse_delta_y * m_camera_sensitivity;
-
-        if (m_mouse_look)
-        {
-            // Activate Mouse Look
-            current->set_rotatation_delta(glm::vec3((float)(m_camera_y),
-                                                    (float)(m_camera_x),
-                                                    (float)(0.0f)));
-        }
-        else
-        {
-            current->set_rotatation_delta(glm::vec3((float)(0),
-                                                    (float)(0),
-                                                    (float)(0)));
-        }
-
-        current->update();
-        update_transforms(current);
+        void* ptr = m_ubo->map(GL_WRITE_ONLY);
+        memcpy(ptr, &m_transforms, sizeof(Transforms));
+        m_ubo->unmap();
     }
 
     // -----------------------------------------------------------------------------------------------------------------------------------
 
 private:
-    // General GPU resources.
-    dw::gl::Shader::Ptr      m_mesh_vs;
-    dw::gl::Shader::Ptr      m_mesh_fs;
-    dw::gl::Shader::Ptr      m_triangle_vs;
-    dw::gl::Shader::Ptr      m_clouds_fs;
-    dw::gl::Shader::Ptr      m_tonemap_fs;
-    dw::gl::Shader::Ptr      m_shape_noise_cs;
-    dw::gl::Shader::Ptr      m_detail_noise_cs;
-    dw::gl::Program::Ptr     m_mesh_program;
-    dw::gl::Program::Ptr     m_clouds_program;
-    dw::gl::Program::Ptr     m_tonemap_program;
-    dw::gl::Program::Ptr     m_shape_noise_program;
-    dw::gl::Program::Ptr     m_detail_noise_program;
-    dw::gl::Buffer::Ptr      m_global_ubo;
-    dw::gl::Texture2D::Ptr   m_hdr_output_texture;
-    dw::gl::Texture2D::Ptr   m_depth_output_texture;
-    dw::gl::Texture2D::Ptr   m_placeholder_texture;
-    dw::gl::Texture2D::Ptr   m_blue_noise_texture;
-    dw::gl::Texture2D::Ptr   m_curl_noise_texture;
-    dw::gl::Texture3D::Ptr   m_shape_noise_texture;
-    dw::gl::Texture3D::Ptr   m_detail_noise_texture;
-    dw::gl::Framebuffer::Ptr m_hdr_output_framebuffer;
+    // GPU resources.
+    dw::gl::Shader::Ptr  m_vs;
+    dw::gl::Shader::Ptr  m_fs;
+    dw::gl::Program::Ptr m_program;
+    dw::gl::Buffer::Ptr  m_ubo;
 
-    int32_t   m_max_num_steps       = 128;
-    float     m_cloud_min_height    = 1500.0f;
-    float     m_cloud_max_height    = 4000.0f;
-    float     m_shape_noise_scale   = 0.3f;
-    float     m_detail_noise_scale  = 5.5f;
-    float     m_detail_noise_modifier  = 0.5f;
-    float     m_turbulence_noise_scale = 7.44f;
-    float     m_turbulence_amount   = 1.0f;
-    float     m_cloud_coverage      = 0.7f;
-    float     m_wind_angle          = 0.0f;
-    float     m_wind_speed          = 50.0f;
-    float     m_wind_shear_offset   = 500.0f;
-    glm::vec3 m_wind_direction      = glm::vec3(0.0f);
-    float     m_planet_radius       = 35000.0f;
-    glm::vec3 m_planet_center;
-    float     m_light_step_length            = 64.0f;
-    float     m_light_cone_radius            = 0.4f;
-    glm::vec3 m_sun_color                    = glm::vec3(1.0f, 1.0f, 1.0f);
-    glm::vec3 m_cloud_base_color             = glm::vec3(0.78f, 0.86f, 1.0f);
-    glm::vec3 m_cloud_top_color              = glm::vec3(1.0f);
-    float     m_precipitation = 1.0f;
-    float     m_ambient_light_factor         = 0.12f;
-    float     m_sun_light_factor             = 1.0f;
-    float     m_henyey_greenstein_g_forward  = 0.4f;
-    float     m_henyey_greenstein_g_backward = 0.179f;
-    float     m_exposure                     = 0.6f;
-
-    dw::Mesh::Ptr               m_plane;
+    // Camera.
     std::unique_ptr<dw::Camera> m_main_camera;
 
-    float          m_sun_angle = 0.0f;
-    glm::vec3      m_light_direction;
-    GlobalUniforms m_global_uniforms;
+    // Assets.
+    dw::Mesh::Ptr m_mesh;
 
-    // Camera controls.
-    bool  m_mouse_look         = false;
-    float m_heading_speed      = 0.0f;
-    float m_sideways_speed     = 0.0f;
-    float m_camera_sensitivity = 0.05f;
-    float m_camera_speed       = 0.05f;
-    bool  m_debug_gui          = true;
-
-    // Camera orientation.
-    float m_camera_x;
-    float m_camera_y;
+    // Uniforms.
+    Transforms m_transforms;
 };
 
-DW_DECLARE_MAIN(VolumetricClouds)
+DW_DECLARE_MAIN(Sample)
