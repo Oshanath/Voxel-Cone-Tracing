@@ -14,8 +14,15 @@ elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
     set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin32/glslangValidator.exe")
 endif()
 
-set(VCT_RENDERER_SOURCES ${PROJECT_SOURCE_DIR}/src/main.cpp)
-set(SHADER_SOURCES ${PROJECT_SOURCE_DIR}/src/shader/mesh.vert ${PROJECT_SOURCE_DIR}/src/shader/mesh.frag)
+set(VCT_RENDERER_SOURCES
+    ${PROJECT_SOURCE_DIR}/src/VCTRenderer.cpp
+    ${PROJECT_SOURCE_DIR}/src/VCTRenderer.h
+    ${PROJECT_SOURCE_DIR}/src/controls.cpp
+    )
+
+set(SHADER_SOURCES 
+    ${PROJECT_SOURCE_DIR}/src/shader/mesh.vert 
+    ${PROJECT_SOURCE_DIR}/src/shader/mesh.frag)
 
 add_executable(VCTRenderer ${VCT_RENDERER_SOURCES} ${SHADER_SOURCES}) 
 target_link_libraries(VCTRenderer dwSampleFramework)
