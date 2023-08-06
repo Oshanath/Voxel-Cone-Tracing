@@ -10,9 +10,13 @@ layout (location = 0) out vec3 FS_IN_FragPos;
 layout (location = 1) out vec2 FS_IN_Texcoord;
 layout (location = 2) out vec3 FS_IN_Normal;
 
-layout (set = 0, binding = 0) uniform PerFrameUBO 
+layout( push_constant ) uniform constants
 {
 	mat4 model;
+} pc;
+
+layout (set = 0, binding = 0) uniform PerFrameUBO 
+{
 	mat4 view;
 	mat4 projection;
 } ubo;
@@ -25,7 +29,7 @@ out gl_PerVertex
 void main() 
 {
     // Transform position into world space
-	vec4 world_pos = ubo.model * vec4(VS_IN_Position.xyz, 1.0);
+	vec4 world_pos = pc.model * vec4(VS_IN_Position.xyz, 1.0);
 
     // Pass world position into Fragment shader
     FS_IN_FragPos = world_pos.xyz;
@@ -36,7 +40,7 @@ void main()
 	gl_Position = ubo.projection * ubo.view * world_pos;
 	
     // Transform vertex normal into world space
-    mat3 normal_mat = mat3(ubo.model);
+    mat3 normal_mat = mat3(pc.model);
 
 	FS_IN_Normal = normal_mat * VS_IN_Normal.xyz;
 }

@@ -18,6 +18,7 @@ set(VCT_RENDERER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/VCTRenderer.cpp
     ${PROJECT_SOURCE_DIR}/src/VCTRenderer.h
     ${PROJECT_SOURCE_DIR}/src/controls.cpp
+    ${PROJECT_SOURCE_DIR}/src/RendererObject.h
     )
 
 set(SHADER_SOURCES 

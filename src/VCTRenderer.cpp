@@ -10,7 +10,7 @@ bool Sample::init(int argc, const char* argv[])
         return false;
 
     // Load mesh.
-    if (!load_mesh())
+    if (!load_objects())
         return false;
 
     create_descriptor_set_layout();
@@ -58,7 +58,10 @@ void Sample::update(double delta)
 
 void Sample::shutdown()
 {
-    m_mesh.reset();
+    for (auto& mesh : m_meshes)
+        mesh.reset();
+    for (auto& object : objects)
+        object.reset();
     m_pso.reset();
     m_pipeline_layout.reset();
     m_per_frame_ds_layout.reset();
@@ -71,11 +74,11 @@ dw::AppSettings Sample::intial_app_settings()
     // Set custom settings here...
     dw::AppSettings settings;
 
-    settings.width       = 1920;
-    settings.height      = 1080;
+    settings.width       = 1280;
+    settings.height      = 720;
     settings.title       = "Voxel Cone Tracing Demo (Vulkan)";
     settings.ray_tracing = false;
-    settings.fullscreen  = true;
+    settings.fullscreen  = false;
 
     return settings;
 }
@@ -136,7 +139,7 @@ void Sample::create_pipeline_state()
     // Create vertex input state
     // ---------------------------------------------------------------------------
 
-    pso_desc.set_vertex_input_state(m_mesh->vertex_input_state_desc());
+    pso_desc.set_vertex_input_state(m_meshes[0]->vertex_input_state_desc());
 
     // ---------------------------------------------------------------------------
     // Create pipeline input assembly state
@@ -227,6 +230,7 @@ void Sample::create_pipeline_state()
 
     pl_desc.add_descriptor_set_layout(m_per_frame_ds_layout)
         .add_descriptor_set_layout(dw::Material::descriptor_set_layout());
+    pl_desc.add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
 
     m_pipeline_layout = dw::vk::PipelineLayout::create(m_vk_backend, pl_desc);
 
@@ -248,10 +252,26 @@ void Sample::create_pipeline_state()
     m_pso = dw::vk::GraphicsPipeline::create(m_vk_backend, pso_desc);
 }
 
-bool Sample::load_mesh()
+bool Sample::load_object(std::string filename)
 {
-    m_mesh = dw::Mesh::load(m_vk_backend, "sponza.obj");
-    return m_mesh != nullptr;
+    m_meshes.push_back(dw::Mesh::load(m_vk_backend, filename));
+    objects.push_back(RenderObject(m_meshes[m_meshes.size() - 1]));
+    return m_meshes[m_meshes.size() - 1] != nullptr;
+}
+
+bool Sample::load_objects()
+{
+    std::vector<bool> results;
+    results.push_back(load_object("sponza.obj"));
+    results.push_back(load_object("teapot.obj"));
+    objects[objects.size() - 1].position = glm::vec3(20.0f, 20.0f, 20.0f);
+
+    for (bool result : results) {
+        if (!result)
+            return false;
+    }
+
+    return true;
 }
 
 void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
@@ -308,20 +328,29 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 0, 1, &m_per_frame_ds->handle(), 1, &dynamic_offset);
 
     VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(cmd_buf->handle(), 0, 1, &m_mesh->vertex_buffer()->handle(), &offset);
-    vkCmdBindIndexBuffer(cmd_buf->handle(), m_mesh->index_buffer()->handle(), 0, VK_INDEX_TYPE_UINT32);
 
-    const auto& submeshes = m_mesh->sub_meshes();
-
-    for (uint32_t i = 0; i < submeshes.size(); i++)
+    for (auto object : objects)
     {
-        auto& submesh = submeshes[i];
-        auto& mat     = m_mesh->material(submesh.mat_idx);
+        auto mesh = object.mesh;
 
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 1, 1, &mat->descriptor_set()->handle(), 0, nullptr);
+        vkCmdBindVertexBuffers(cmd_buf->handle(), 0, 1, &mesh->vertex_buffer()->handle(), &offset);
+        vkCmdBindIndexBuffer(cmd_buf->handle(), mesh->index_buffer()->handle(), 0, VK_INDEX_TYPE_UINT32);
 
-        // Issue draw call.
-        vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, 1, submesh.base_index, submesh.base_vertex, 0);
+        // push constant
+
+        const auto& submeshes = mesh->sub_meshes();
+
+        for (uint32_t i = 0; i < submeshes.size(); i++)
+        {
+            auto& submesh = submeshes[i];
+            auto& mat     = mesh->material(submesh.mat_idx);
+
+            vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 1, 1, &mat->descriptor_set()->handle(), 0, nullptr);
+            vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), glm::value_ptr(object.get_model()));
+
+            // Issue draw call.
+            vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, 1, submesh.base_index, submesh.base_vertex, 0);
+        }
     }
 
     render_gui(cmd_buf);
@@ -332,11 +361,6 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 void Sample::update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     DW_SCOPED_SAMPLE("update_uniforms", cmd_buf);
-
-    m_transforms.model      = glm::mat4(1.0f);
-    m_transforms.model      = glm::translate(m_transforms.model, glm::vec3(0.0f, -20.0f, 0.0f));
-    m_transforms.model      = glm::rotate(m_transforms.model, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-    m_transforms.model      = glm::scale(m_transforms.model, glm::vec3(0.6f));
     m_transforms.view       = m_main_camera->m_view;
     m_transforms.projection = m_main_camera->m_projection;
 

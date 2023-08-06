@@ -9,16 +9,22 @@
 #include <assimp/scene.h>
 #include <vk_mem_alloc.h>
 #include <iostream>
+#include "RendererObject.h"
 
 // Uniform buffer data structure.
 struct Transforms
 {
     DW_ALIGNED(16)
-    glm::mat4 model;
-    DW_ALIGNED(16)
     glm::mat4 view;
     DW_ALIGNED(16)
     glm::mat4 projection;
+};
+
+// Push constant data structure (model matrix)
+struct MeshPushConstants
+{
+    DW_ALIGNED(16)
+    glm::mat4 model;
 };
 
 class Sample : public dw::Application
@@ -54,7 +60,8 @@ private:
     void write_descriptor_set();
     void create_pipeline_state();
 
-    bool load_mesh();
+    bool load_object(std::string filename);
+    bool load_objects();
     inline void create_camera()
     {
         m_main_camera = std::make_unique<dw::Camera>(
@@ -90,7 +97,8 @@ private:
     float m_camera_y;
 
     // Assets.
-    dw::Mesh::Ptr m_mesh;
+    std::vector<dw::Mesh::Ptr> m_meshes;
+    std::vector<RenderObject>  objects;
 
     // Uniforms.
     Transforms m_transforms;
