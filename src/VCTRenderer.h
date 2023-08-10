@@ -37,7 +37,7 @@ protected:
     inline void window_resized(int width, int height) override
     {
         // Override window resized method to update camera projection.
-        m_main_camera->update_projection(60.0f, 0.1f, 10000.0f, float(m_width) / float(m_height));
+        m_main_camera->update_projection(60.0f, 0.1f, m_far, float(m_width) / float(m_height));
     }
 
     void key_pressed(int code) override;
@@ -61,13 +61,14 @@ private:
     void create_pipeline_state();
 
     bool load_object(std::string filename);
-    bool load_objects();
+    bool        load_objects();
     inline void create_camera()
     {
         m_main_camera = std::make_unique<dw::Camera>(
-            60.0f, 0.1f, 1000.0f, float(m_width) / float(m_height), glm::vec3(0.0f, 0.0f, 100.0f), glm::vec3(0.0f, 0.0, -1.0f));
+            60.0f, 0.1f, m_far, float(m_width) / float(m_height), glm::vec3(0.0f, 0.0f, 100.0f), glm::vec3(0.0f, 0.0, -1.0f));
     }
 
+    void render_objects(dw::vk::CommandBuffer::Ptr cmd_buf);
     void render(dw::vk::CommandBuffer::Ptr cmd_buf);
     void update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf);
     void update_camera();
@@ -92,9 +93,10 @@ private:
     float m_camera_sensitivity = 0.05f;
     float m_camera_speed       = 0.2f;
 
-    // Camera orientation.
+    // Camera 
     float m_camera_x;
     float m_camera_y;
+    float m_far;
 
     // Assets.
     std::vector<dw::Mesh::Ptr> m_meshes;

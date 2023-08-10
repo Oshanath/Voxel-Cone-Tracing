@@ -19,11 +19,15 @@ set(VCT_RENDERER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/VCTRenderer.h
     ${PROJECT_SOURCE_DIR}/src/controls.cpp
     ${PROJECT_SOURCE_DIR}/src/RendererObject.h
+    ${PROJECT_SOURCE_DIR}/external/dw-sample-framework/extras/shadow_map.cpp
+    ${PROJECT_SOURCE_DIR}/external/dw-sample-framework/extras/shadow_map.h
     )
 
 set(SHADER_SOURCES 
     ${PROJECT_SOURCE_DIR}/src/shader/mesh.vert 
-    ${PROJECT_SOURCE_DIR}/src/shader/mesh.frag)
+    ${PROJECT_SOURCE_DIR}/src/shader/mesh.frag
+    ${PROJECT_SOURCE_DIR}/src/shader/shadow.vert 
+    ${PROJECT_SOURCE_DIR}/src/shader/shadow.frag)
 
 add_executable(VCTRenderer ${VCT_RENDERER_SOURCES} ${SHADER_SOURCES}) 
 target_link_libraries(VCTRenderer dwSampleFramework)

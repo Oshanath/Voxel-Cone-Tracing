@@ -274,6 +274,35 @@ bool Sample::load_objects()
     return true;
 }
 
+void Sample::render_objects(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+    VkDeviceSize offset = 0;
+
+    for (auto object : objects)
+    {
+        auto mesh = object.mesh;
+
+        vkCmdBindVertexBuffers(cmd_buf->handle(), 0, 1, &mesh->vertex_buffer()->handle(), &offset);
+        vkCmdBindIndexBuffer(cmd_buf->handle(), mesh->index_buffer()->handle(), 0, VK_INDEX_TYPE_UINT32);
+
+        // push constant
+
+        const auto& submeshes = mesh->sub_meshes();
+
+        for (uint32_t i = 0; i < submeshes.size(); i++)
+        {
+            auto& submesh = submeshes[i];
+            auto& mat     = mesh->material(submesh.mat_idx);
+
+            vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 1, 1, &mat->descriptor_set()->handle(), 0, nullptr);
+            vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), glm::value_ptr(object.get_model()));
+
+            // Issue draw call.
+            vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, 1, submesh.base_index, submesh.base_vertex, 0);
+        }
+    }
+}
+
 void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     DW_SCOPED_SAMPLE("render", cmd_buf);
@@ -327,31 +356,7 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 0, 1, &m_per_frame_ds->handle(), 1, &dynamic_offset);
 
-    VkDeviceSize offset = 0;
-
-    for (auto object : objects)
-    {
-        auto mesh = object.mesh;
-
-        vkCmdBindVertexBuffers(cmd_buf->handle(), 0, 1, &mesh->vertex_buffer()->handle(), &offset);
-        vkCmdBindIndexBuffer(cmd_buf->handle(), mesh->index_buffer()->handle(), 0, VK_INDEX_TYPE_UINT32);
-
-        // push constant
-
-        const auto& submeshes = mesh->sub_meshes();
-
-        for (uint32_t i = 0; i < submeshes.size(); i++)
-        {
-            auto& submesh = submeshes[i];
-            auto& mat     = mesh->material(submesh.mat_idx);
-
-            vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 1, 1, &mat->descriptor_set()->handle(), 0, nullptr);
-            vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), glm::value_ptr(object.get_model()));
-
-            // Issue draw call.
-            vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, 1, submesh.base_index, submesh.base_vertex, 0);
-        }
-    }
+    render_objects(cmd_buf);
 
     render_gui(cmd_buf);
 
