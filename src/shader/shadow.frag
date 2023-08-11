@@ -11,8 +11,9 @@ layout (set = 1, binding = 1) uniform sampler2D s_Normal;
 layout (set = 1, binding = 2) uniform sampler2D s_Metallic;
 layout (set = 1, binding = 3) uniform sampler2D s_Roughness;
 
+layout (set = 2, binding = 0) uniform sampler2D shadow_map;
+
 void main()
 {
-    float depth = FS_IN_FragPos.z / 1000;
-    FS_OUT_Color = vec3(depth, 0.0, 0.0);
+    
 }

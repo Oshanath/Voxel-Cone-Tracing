@@ -10,6 +10,7 @@
 #include <vk_mem_alloc.h>
 #include <iostream>
 #include "RendererObject.h"
+#include <shadow_map.h>
 
 // Uniform buffer data structure.
 struct Transforms
@@ -52,13 +53,15 @@ private:
     }
 
     bool create_uniform_buffer();
-    void create_descriptor_set_layout();
-    inline void create_descriptor_set()
+    void create_descriptor_set_layouts();
+    inline void create_descriptor_sets()
     {
         m_per_frame_ds = m_vk_backend->allocate_descriptor_set(m_per_frame_ds_layout);
+        m_shadow_ds	= m_vk_backend->allocate_descriptor_set(m_shadow_ds_layout);
     }
-    void write_descriptor_set();
-    void create_pipeline_state();
+    void write_descriptor_sets();
+    void create_main_pipeline_state();
+    void create_shadow_pipeline_state();
 
     bool load_object(std::string filename);
     bool        load_objects();
@@ -68,7 +71,9 @@ private:
             60.0f, 0.1f, m_far, float(m_width) / float(m_height), glm::vec3(0.0f, 0.0f, 100.0f), glm::vec3(0.0f, 0.0, -1.0f));
     }
 
-    void render_objects(dw::vk::CommandBuffer::Ptr cmd_buf);
+    void render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout);
+    void begin_render_main(dw::vk::CommandBuffer::Ptr cmd_buf);
+    void begin_render_shadow(dw::vk::CommandBuffer::Ptr cmd_buf);
     void render(dw::vk::CommandBuffer::Ptr cmd_buf);
     void update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf);
     void update_camera();
@@ -76,10 +81,14 @@ private:
 private:
     // GPU resources.
     size_t                           m_ubo_size;
-    dw::vk::GraphicsPipeline::Ptr    m_pso;
-    dw::vk::PipelineLayout::Ptr      m_pipeline_layout;
+    dw::vk::GraphicsPipeline::Ptr    m_graphics_pipeline_main;
+    dw::vk::GraphicsPipeline::Ptr    m_graphics_pipeline_shadow;
+    dw::vk::PipelineLayout::Ptr      m_pipeline_layout_main;
+    dw::vk::PipelineLayout::Ptr      m_pipeline_layout_shadow;
     dw::vk::DescriptorSetLayout::Ptr m_per_frame_ds_layout;
+    dw::vk::DescriptorSetLayout::Ptr m_shadow_ds_layout;
     dw::vk::DescriptorSet::Ptr       m_per_frame_ds;
+    dw::vk::DescriptorSet::Ptr       m_shadow_ds;
     dw::vk::Buffer::Ptr              m_ubo;
 
     // Camera.
@@ -96,7 +105,7 @@ private:
     // Camera 
     float m_camera_x;
     float m_camera_y;
-    float m_far;
+    float m_far = 1000.0f;
 
     // Assets.
     std::vector<dw::Mesh::Ptr> m_meshes;
@@ -104,4 +113,9 @@ private:
 
     // Uniforms.
     Transforms m_transforms;
+
+    // Shadow map
+    std::unique_ptr<dw::ShadowMap> m_shadow_map;
+    float m_shadow_map_size = 2048.0f;
+    dw::vk::Sampler::Ptr m_shadow_map_sampler;
 };
