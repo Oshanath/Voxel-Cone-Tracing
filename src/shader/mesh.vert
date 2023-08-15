@@ -9,6 +9,7 @@ layout(location = 4) in vec4 VS_IN_Bitangent;
 layout (location = 0) out vec3 FS_IN_FragPos;
 layout (location = 1) out vec2 FS_IN_Texcoord;
 layout (location = 2) out vec3 FS_IN_Normal;
+layout (location = 3) out vec4 FS_IN_FragPosLightSpace;
 
 layout( push_constant ) uniform constants
 {
@@ -19,6 +20,7 @@ layout (set = 0, binding = 0) uniform PerFrameUBO
 {
 	mat4 view;
 	mat4 projection;
+	mat4 lightSpaceMatrix;
 } ubo;
 
 out gl_PerVertex
@@ -33,6 +35,9 @@ void main()
 
     // Pass world position into Fragment shader
     FS_IN_FragPos = world_pos.xyz;
+
+	// Calculate light space position of vertex and pass into fragment shader
+	FS_IN_FragPosLightSpace = ubo.lightSpaceMatrix * world_pos;
 
     FS_IN_Texcoord = VS_IN_Texcoord.xy;
 

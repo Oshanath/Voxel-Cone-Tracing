@@ -12,8 +12,18 @@
 #include "RendererObject.h"
 #include <shadow_map.h>
 
-// Uniform buffer data structure.
-struct Transforms
+// Uniform buffer data structures.
+struct TransformsMain
+{
+    DW_ALIGNED(16)
+    glm::mat4 view;
+    DW_ALIGNED(16)
+    glm::mat4 projection;
+    DW_ALIGNED(16)
+    glm::mat4 lightSpaceMatrix;
+};
+
+struct TransformsShadow
 {
     DW_ALIGNED(16)
     glm::mat4 view;
@@ -88,7 +98,8 @@ private:
 
 private:
     // GPU resources.
-    size_t                           m_ubo_size;
+    size_t                           m_ubo_size_main;
+    size_t                           m_ubo_size_shadow;
     dw::vk::GraphicsPipeline::Ptr    m_graphics_pipeline_main;
     dw::vk::GraphicsPipeline::Ptr    m_graphics_pipeline_shadow;
     dw::vk::PipelineLayout::Ptr      m_pipeline_layout_main;
@@ -122,7 +133,8 @@ private:
     std::vector<RenderObject>  objects;
 
     // Uniforms.
-    Transforms m_transforms;
+    TransformsMain m_transforms_main;
+    TransformsShadow m_transforms_shadow;
 
     // Shadow map
     std::unique_ptr<dw::ShadowMap> m_shadow_map;
