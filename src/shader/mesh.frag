@@ -3,7 +3,6 @@
 layout (location = 0) in vec4 FS_IN_FragPos;
 layout (location = 1) in vec2 FS_IN_Texcoord;
 layout (location = 2) in vec3 FS_IN_Normal;
-layout (location = 3) in mat4 FS_IN_lightMatrix;
 
 layout (location = 0) out vec3 FS_OUT_Color;
 
@@ -13,6 +12,13 @@ layout (set = 1, binding = 2) uniform sampler2D s_Metallic;
 layout (set = 1, binding = 3) uniform sampler2D s_Roughness;
 
 layout (set = 2, binding = 0) uniform sampler2D shadow_map;
+
+layout (set = 0, binding = 0) uniform PerFrameUBO 
+{
+	mat4 view;
+	mat4 projection;
+	mat4 lightSpaceMatrix;
+} ubo;
 
 void main()
 {
@@ -24,7 +30,7 @@ void main()
     vec3 diffuse = texture(s_Diffuse, FS_IN_Texcoord).xyz;
 	vec3 ambient = diffuse * 0.03;
 
-	vec4 FragPosLightSpace = FS_IN_lightMatrix * FS_IN_FragPos;
+	vec4 FragPosLightSpace = ubo.lightSpaceMatrix * FS_IN_FragPos;
 
 	//vec3 fragNDCCoords = FragPosLightSpace.xyz / FragPosLightSpace.w;
 	vec3 fragNDCCoords = FragPosLightSpace.xyz;

@@ -126,7 +126,7 @@ void Sample::create_descriptor_set_layouts()
 {
     // main 
     dw::vk::DescriptorSetLayout::Desc desc;
-    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
     m_ds_layout_transforms = dw::vk::DescriptorSetLayout::create(m_vk_backend, desc);
 
     // shadow
