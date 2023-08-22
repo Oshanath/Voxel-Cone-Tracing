@@ -37,6 +37,15 @@ bool Sample::init(int argc, const char* argv[])
     create_main_pipeline_state();
     create_shadow_pipeline_state();
 
+    // Lights
+    Light light;
+    light.color        = glm::vec3(0.1f, -1.0f, 1.0f);
+    light.intensity    = 1.0f;
+    light.position     = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    light.direction    = glm::normalize(glm::vec3(0.1f, -1.0f, 0.0f));
+    light.type         = 0;
+    m_lights.lights[0] = light;
+
     // Create camera.
     create_camera();
 
@@ -86,13 +95,15 @@ void Sample::shutdown()
     m_graphics_pipeline_shadow.reset();
     m_pipeline_layout_main.reset();
     m_pipeline_layout_shadow.reset();
-    m_ds_layout_transforms.reset();
-    m_ds_layout_shadow_sampler.reset();
+    m_ds_layout_ubo.reset();
+    m_ds_layout_sampler.reset();
     m_ds_transforms_main.reset();
     m_ds_transforms_shadow.reset();
     m_ds_shadow_sampler.reset();
+    m_ds_lights.reset();
     m_ubo_transforms_main.reset();
     m_ubo_transforms_shadow.reset();
+    m_ubo_lights.reset();
     m_shadow_map.reset();
     m_shadow_map_sampler.reset();
     m_debug_draw.shutdown();
@@ -112,12 +123,26 @@ dw::AppSettings Sample::intial_app_settings()
     return settings;
 }
 
+inline void Sample::window_resized(int width, int height)
+{
+    // Override window resized method to update camera projection.
+    m_main_camera->update_projection(60.0f, 0.1f, m_far, float(m_width) / float(m_height));
+}
+
+inline bool Sample::create_shaders()
+{
+    return true;
+}
+
 bool Sample::create_uniform_buffers()
 {
     m_ubo_size_main         = m_vk_backend->aligned_dynamic_ubo_size(sizeof(TransformsMain));
     m_ubo_size_shadow       = m_vk_backend->aligned_dynamic_ubo_size(sizeof(TransformsShadow));
+    m_ubo_size_lights       = m_vk_backend->aligned_dynamic_ubo_size(sizeof(Lights));
+
     m_ubo_transforms_main   = dw::vk::Buffer::create(m_vk_backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size_main * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
     m_ubo_transforms_shadow = dw::vk::Buffer::create(m_vk_backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size_shadow * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    m_ubo_lights            = dw::vk::Buffer::create(m_vk_backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size_lights * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     return true;
 }
@@ -127,12 +152,20 @@ void Sample::create_descriptor_set_layouts()
     // main 
     dw::vk::DescriptorSetLayout::Desc desc;
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-    m_ds_layout_transforms = dw::vk::DescriptorSetLayout::create(m_vk_backend, desc);
+    m_ds_layout_ubo = dw::vk::DescriptorSetLayout::create(m_vk_backend, desc);
 
     // shadow
     DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
-    m_ds_layout_shadow_sampler = dw::vk::DescriptorSetLayout::create(m_vk_backend, desc);
+    m_ds_layout_sampler = dw::vk::DescriptorSetLayout::create(m_vk_backend, desc);
+}
+
+inline void Sample::create_descriptor_sets()
+{
+    m_ds_transforms_main   = m_vk_backend->allocate_descriptor_set(m_ds_layout_ubo);
+    m_ds_transforms_shadow = m_vk_backend->allocate_descriptor_set(m_ds_layout_ubo);
+    m_ds_shadow_sampler    = m_vk_backend->allocate_descriptor_set(m_ds_layout_sampler);
+    m_ds_lights            = m_vk_backend->allocate_descriptor_set(m_ds_layout_ubo);
 }
 
 void Sample::write_descriptor_sets()
@@ -188,6 +221,24 @@ void Sample::write_descriptor_sets()
     write_data.pImageInfo      = &image_info;
     write_data.dstBinding      = 0;
     write_data.dstSet          = m_ds_shadow_sampler->handle();
+
+    vkUpdateDescriptorSets(m_vk_backend->device(), 1, &write_data, 0, nullptr);
+
+    // Lights uniform buffer
+    DW_ZERO_MEMORY(buffer_info);
+
+    buffer_info.buffer = m_ubo_lights->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = sizeof(Lights);
+
+    DW_ZERO_MEMORY(write_data);
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    write_data.pBufferInfo     = &buffer_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_lights->handle();
 
     vkUpdateDescriptorSets(m_vk_backend->device(), 1, &write_data, 0, nullptr);
 }
@@ -299,9 +350,10 @@ void Sample::create_main_pipeline_state()
 
     dw::vk::PipelineLayout::Desc pl_desc;
 
-    pl_desc.add_descriptor_set_layout(m_ds_layout_transforms)
+    pl_desc.add_descriptor_set_layout(m_ds_layout_ubo)
         .add_descriptor_set_layout(dw::Material::descriptor_set_layout())
-        .add_descriptor_set_layout(m_ds_layout_shadow_sampler);
+        .add_descriptor_set_layout(m_ds_layout_sampler)
+        .add_descriptor_set_layout(m_ds_layout_ubo);
     pl_desc.add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
 
     m_pipeline_layout_main = dw::vk::PipelineLayout::create(m_vk_backend, pl_desc);
@@ -431,9 +483,8 @@ void Sample::create_shadow_pipeline_state()
 
     dw::vk::PipelineLayout::Desc pl_desc;
 
-    pl_desc.add_descriptor_set_layout(m_ds_layout_transforms)
+    pl_desc.add_descriptor_set_layout(m_ds_layout_ubo)
         .add_descriptor_set_layout(dw::Material::descriptor_set_layout())
-        //.add_descriptor_set_layout(m_ds_layout_shadow_sampler)
         .add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
 
     m_pipeline_layout_shadow = dw::vk::PipelineLayout::create(m_vk_backend, pl_desc);
@@ -476,6 +527,19 @@ bool Sample::load_objects()
     }
 
     return true;
+}
+
+inline void Sample::create_camera()
+{
+    m_main_camera = std::make_unique<dw::Camera>(
+        60.0f, 0.1f, m_far, float(m_width) / float(m_height), glm::vec3(0.0f, 0.0f, 100.0f), glm::vec3(0.0f, 0.0, -1.0f));
+
+    m_shadow_map->set_target(glm::vec3(-110.0f, 64.0f, 0.0f));
+    m_shadow_map->set_direction(glm::normalize(m_lights.lights[0].direction));
+    m_shadow_map->set_backoff_distance(6000.0f);
+    m_shadow_map->set_extents(2000.0f);
+    m_shadow_map->set_near_plane(1.0f);
+    m_shadow_map->set_far_plane(8000.0f);
 }
 
 void Sample::render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout)
@@ -577,10 +641,11 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     begin_render_main(cmd_buf);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 0, 1, &m_ds_transforms_main->handle(), 1, &dynamic_offset);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 2, 1, &m_ds_shadow_sampler->handle(), 0, nullptr);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 3, 1, &m_ds_lights->handle(), 1, &dynamic_offset);
     render_objects(cmd_buf, m_pipeline_layout_main);
 
-    m_debug_draw.frustum(m_shadow_map->projection(), m_shadow_map->view(), glm::vec3(1.0f, 0.0f, 0.0f));
-    m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
+    //m_debug_draw.frustum(m_shadow_map->projection(), m_shadow_map->view(), glm::vec3(1.0f, 0.0f, 0.0f));
+   // m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
 
     render_gui(cmd_buf);
     vkCmdEndRenderPass(cmd_buf->handle());
@@ -604,6 +669,9 @@ void Sample::update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf, bool shadow)
         m_transforms_main.lightSpaceMatrix = m_shadow_map->projection()  * m_shadow_map->view();
         uint8_t* ptr            = (uint8_t*)m_ubo_transforms_main->mapped_ptr();
         memcpy(ptr + m_ubo_size_main * m_vk_backend->current_frame_idx(), &m_transforms_main, sizeof(TransformsMain));
+
+        ptr = (uint8_t*)m_ubo_lights->mapped_ptr();
+        memcpy(ptr + m_ubo_size_lights * m_vk_backend->current_frame_idx(), &m_lights, sizeof(Lights));
     }
 }
 

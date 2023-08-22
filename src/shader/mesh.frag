@@ -14,18 +14,27 @@ layout (set = 1, binding = 3) uniform sampler2D s_Roughness;
 layout (set = 2, binding = 0) uniform sampler2D shadow_map;
 
 layout (set = 0, binding = 0) uniform PerFrameUBO 
-{
+{	
 	mat4 view;
 	mat4 projection;
 	mat4 lightSpaceMatrix;
 } ubo;
 
+layout (set = 3, binding = 0) uniform LightsUBO 
+{	
+	vec4 position;
+	vec3 direction;
+	int type;
+	vec3 color;
+	float intensity;
+} lights;
+
 void main()
 {
-    vec3 light_dir = normalize(vec3(-0.1, 1.0, 0.0));
+    vec3 light_dir = lights.direction;
 	vec3 n = normalize(FS_IN_Normal);
 
-	float lambert = max(0.0f, dot(n, light_dir));
+	float lambert = max(0.0f, dot(n, -light_dir));
 
     vec3 diffuse = texture(s_Diffuse, FS_IN_Texcoord).xyz;
 	vec3 ambient = diffuse * 0.03;

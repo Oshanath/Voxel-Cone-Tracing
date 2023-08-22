@@ -32,6 +32,20 @@ struct TransformsShadow
     glm::mat4 projection;
 };
 
+struct Light
+{
+	glm::vec4 position;
+    glm::vec3 direction;
+	int     type;
+	glm::vec3 color;
+	float     intensity;
+};
+
+struct Lights
+{
+	Light lights[1];
+};
+
 // Push constant data structure (model matrix)
 struct MeshPushConstants
 {
@@ -46,11 +60,7 @@ protected:
     void update(double delta) override;
     void shutdown() override;
     dw::AppSettings intial_app_settings() override;
-    inline void window_resized(int width, int height) override
-    {
-        // Override window resized method to update camera projection.
-        m_main_camera->update_projection(60.0f, 0.1f, m_far, float(m_width) / float(m_height));
-    }
+    inline void     window_resized(int width, int height) override;
 
     void key_pressed(int code) override;
     void key_released(int code) override;
@@ -58,38 +68,18 @@ protected:
     void mouse_released(int code) override;
 
 private:
-    inline bool create_shaders()
-    {
-        return true;
-    }
+    inline bool create_shaders();
 
     bool create_uniform_buffers();
     void create_descriptor_set_layouts();
-    inline void create_descriptor_sets()
-    {
-        m_ds_transforms_main = m_vk_backend->allocate_descriptor_set(m_ds_layout_transforms);
-        m_ds_transforms_shadow = m_vk_backend->allocate_descriptor_set(m_ds_layout_transforms);
-        m_ds_shadow_sampler  = m_vk_backend->allocate_descriptor_set(m_ds_layout_shadow_sampler);
-        m_ds_shadow_sampler->set_name("m_ds_shadow_sampler");
-    }
+    inline void create_descriptor_sets();
     void write_descriptor_sets();
     void create_main_pipeline_state();
     void create_shadow_pipeline_state();
 
     bool load_object(std::string filename);
     bool        load_objects();
-    inline void create_camera()
-    {
-        m_main_camera = std::make_unique<dw::Camera>(
-            60.0f, 0.1f, m_far, float(m_width) / float(m_height), glm::vec3(0.0f, 0.0f, 100.0f), glm::vec3(0.0f, 0.0, -1.0f));
-
-        m_shadow_map->set_target(glm::vec3(-110.0f, 64.0f, 0.0f));
-        m_shadow_map->set_direction(glm::normalize(glm::vec3(0.1f, -1.0f, 0.0f)));
-        m_shadow_map->set_backoff_distance(3000.0f);
-        m_shadow_map->set_extents(2000.0f);
-        m_shadow_map->set_near_plane(1.0f);
-        m_shadow_map->set_far_plane(5000.0f);
-    }
+    inline void create_camera();
 
     void render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout);
     void begin_render_main(dw::vk::CommandBuffer::Ptr cmd_buf);
@@ -102,17 +92,20 @@ private:
     // GPU resources.
     size_t                           m_ubo_size_main;
     size_t                           m_ubo_size_shadow;
+    size_t						     m_ubo_size_lights;
     dw::vk::GraphicsPipeline::Ptr    m_graphics_pipeline_main;
     dw::vk::GraphicsPipeline::Ptr    m_graphics_pipeline_shadow;
     dw::vk::PipelineLayout::Ptr      m_pipeline_layout_main;
     dw::vk::PipelineLayout::Ptr      m_pipeline_layout_shadow;
-    dw::vk::DescriptorSetLayout::Ptr m_ds_layout_transforms;
-    dw::vk::DescriptorSetLayout::Ptr m_ds_layout_shadow_sampler;
+    dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo;
+    dw::vk::DescriptorSetLayout::Ptr m_ds_layout_sampler;
     dw::vk::DescriptorSet::Ptr       m_ds_transforms_main;
     dw::vk::DescriptorSet::Ptr       m_ds_transforms_shadow;
     dw::vk::DescriptorSet::Ptr       m_ds_shadow_sampler;
+    dw::vk::DescriptorSet::Ptr       m_ds_lights;
     dw::vk::Buffer::Ptr              m_ubo_transforms_main;
     dw::vk::Buffer::Ptr              m_ubo_transforms_shadow;
+    dw::vk::Buffer::Ptr			     m_ubo_lights;
 
     // Camera.
     std::unique_ptr<dw::Camera> m_main_camera;
@@ -145,4 +138,7 @@ private:
 
     // Debug draw
     dw::DebugDraw m_debug_draw;
+
+    // Lights
+    Lights m_lights;
 };

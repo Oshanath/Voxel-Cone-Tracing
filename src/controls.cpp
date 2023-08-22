@@ -1,7 +1,7 @@
 #include "VCTRenderer.h"
 
-float backoff = 1400.0f;
-float farPlane = 10000.0f;
+float x_angle = 0.00001f;
+float y_angle = 0.00001f;
 
 void Sample::key_pressed(int code)
 {
@@ -23,35 +23,31 @@ void Sample::key_pressed(int code)
     else if (code == GLFW_KEY_LEFT_CONTROL)
         m_climbing_speed = -m_camera_speed;
 
+    float sun_angle_delta = 5.0f;
+
     if (code == GLFW_KEY_UP)
     {
-        backoff += 100.0f;
-        m_shadow_map->set_backoff_distance(backoff);
-        std::cout << "backoff: " << backoff << "  ";
+        x_angle += sun_angle_delta;
     }
 
     if (code == GLFW_KEY_DOWN)
     {
-        backoff -= 100.0f;
-        m_shadow_map->set_backoff_distance(backoff);
-        std::cout << "backoff: " << backoff << "  ";
+        x_angle -= sun_angle_delta;
     }
 
     if (code == GLFW_KEY_RIGHT)
     {
-        farPlane += 100.0f;
-        m_shadow_map->set_far_plane(farPlane);
-        std::cout << "farPlane: " << farPlane << "  ";
+        y_angle += sun_angle_delta;
     }
 
     if (code == GLFW_KEY_LEFT)
     {
-        farPlane -= 100.0f;
-        m_shadow_map->set_far_plane(farPlane);
-        std::cout << "farPlane: " << farPlane << "  ";
+        y_angle -= sun_angle_delta;
     }
-    std::cout << "\n";
+    
 
+    m_lights.lights[0].direction = glm::angleAxis(glm::radians(y_angle), glm::vec3(0.0f, 0.0f, 1.0f)) * glm::angleAxis(glm::radians(x_angle), glm::vec3(1.0f, 0.0f, 0.0f)) * glm::vec3(0.0f, -1.0f, 0.0f);
+    m_shadow_map->set_direction(m_lights.lights[0].direction);
 }
 
 void Sample::key_released(int code)
