@@ -26,9 +26,10 @@ bool Sample::init(int argc, const char* argv[])
 	sampler_desc.address_mode_v = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sampler_desc.address_mode_w = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sampler_desc.anisotropy_enable = VK_FALSE;
-    sampler_desc.compare_enable = VK_TRUE;
-    sampler_desc.compare_op = VK_COMPARE_OP_LESS;
+    sampler_desc.compare_enable = VK_FALSE;
+    sampler_desc.compare_op = VK_COMPARE_OP_NEVER;
     m_shadow_map_sampler = dw::vk::Sampler::create(m_vk_backend, sampler_desc);
+    m_shadow_map_sampler->set_name("shadow_map_sampler");
 
     create_descriptor_set_layouts();
     create_descriptor_sets();
@@ -38,6 +39,10 @@ bool Sample::init(int argc, const char* argv[])
 
     // Create camera.
     create_camera();
+
+    // Debug draw
+    m_debug_draw.init(m_vk_backend, m_vk_backend->swapchain_render_pass());
+    m_debug_draw.set_depth_test(true);
 
     return true;
 }
@@ -90,6 +95,7 @@ void Sample::shutdown()
     m_ubo_transforms_shadow.reset();
     m_shadow_map.reset();
     m_shadow_map_sampler.reset();
+    m_debug_draw.shutdown();
 }
 
 dw::AppSettings Sample::intial_app_settings()
@@ -573,6 +579,9 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 2, 1, &m_ds_shadow_sampler->handle(), 0, nullptr);
     render_objects(cmd_buf, m_pipeline_layout_main);
 
+    m_debug_draw.frustum(m_shadow_map->projection(), m_shadow_map->view(), glm::vec3(1.0f, 0.0f, 0.0f));
+    m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
+
     render_gui(cmd_buf);
     vkCmdEndRenderPass(cmd_buf->handle());
 }
@@ -612,7 +621,6 @@ void Sample::update_camera()
 
     m_camera_x = m_mouse_delta_x * m_camera_sensitivity;
     m_camera_y = m_mouse_delta_y * m_camera_sensitivity;
-    std::cout << current->m_position.x << "      " << current->m_position.y << "       " << current->m_position.z << std::endl;
 
     if (m_mouse_look)
     {

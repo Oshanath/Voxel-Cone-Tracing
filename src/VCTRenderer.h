@@ -11,6 +11,7 @@
 #include <iostream>
 #include "RendererObject.h"
 #include <shadow_map.h>
+#include <debug_draw.h>
 
 // Uniform buffer data structures.
 struct TransformsMain
@@ -69,6 +70,7 @@ private:
         m_ds_transforms_main = m_vk_backend->allocate_descriptor_set(m_ds_layout_transforms);
         m_ds_transforms_shadow = m_vk_backend->allocate_descriptor_set(m_ds_layout_transforms);
         m_ds_shadow_sampler  = m_vk_backend->allocate_descriptor_set(m_ds_layout_shadow_sampler);
+        m_ds_shadow_sampler->set_name("m_ds_shadow_sampler");
     }
     void write_descriptor_sets();
     void create_main_pipeline_state();
@@ -82,11 +84,11 @@ private:
             60.0f, 0.1f, m_far, float(m_width) / float(m_height), glm::vec3(0.0f, 0.0f, 100.0f), glm::vec3(0.0f, 0.0, -1.0f));
 
         m_shadow_map->set_target(glm::vec3(-110.0f, 64.0f, 0.0f));
-        m_shadow_map->set_direction(glm::normalize(glm::vec3(1.0f, -1.0f, 0.0f)));
-        m_shadow_map->set_backoff_distance(7000.0f);
-        m_shadow_map->set_extents(1000.0f);
+        m_shadow_map->set_direction(glm::normalize(glm::vec3(0.1f, -1.0f, 0.0f)));
+        m_shadow_map->set_backoff_distance(3000.0f);
+        m_shadow_map->set_extents(2000.0f);
         m_shadow_map->set_near_plane(1.0f);
-        m_shadow_map->set_far_plane(10000.0f);
+        m_shadow_map->set_far_plane(5000.0f);
     }
 
     void render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout);
@@ -126,7 +128,7 @@ private:
     // Camera 
     float m_camera_x;
     float m_camera_y;
-    float m_far = 2000.0f;
+    float m_far = 10000.0f;
 
     // Assets.
     std::vector<dw::Mesh::Ptr> m_meshes;
@@ -140,4 +142,7 @@ private:
     std::unique_ptr<dw::ShadowMap> m_shadow_map;
     float m_shadow_map_size = 2048.0f;
     dw::vk::Sampler::Ptr m_shadow_map_sampler;
+
+    // Debug draw
+    dw::DebugDraw m_debug_draw;
 };

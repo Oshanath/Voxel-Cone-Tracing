@@ -1,5 +1,8 @@
 #include "VCTRenderer.h"
 
+float backoff = 1400.0f;
+float farPlane = 10000.0f;
+
 void Sample::key_pressed(int code)
 {
     // Handle forward movement.
@@ -19,6 +22,36 @@ void Sample::key_pressed(int code)
         m_climbing_speed = m_camera_speed;
     else if (code == GLFW_KEY_LEFT_CONTROL)
         m_climbing_speed = -m_camera_speed;
+
+    if (code == GLFW_KEY_UP)
+    {
+        backoff += 100.0f;
+        m_shadow_map->set_backoff_distance(backoff);
+        std::cout << "backoff: " << backoff << "  ";
+    }
+
+    if (code == GLFW_KEY_DOWN)
+    {
+        backoff -= 100.0f;
+        m_shadow_map->set_backoff_distance(backoff);
+        std::cout << "backoff: " << backoff << "  ";
+    }
+
+    if (code == GLFW_KEY_RIGHT)
+    {
+        farPlane += 100.0f;
+        m_shadow_map->set_far_plane(farPlane);
+        std::cout << "farPlane: " << farPlane << "  ";
+    }
+
+    if (code == GLFW_KEY_LEFT)
+    {
+        farPlane -= 100.0f;
+        m_shadow_map->set_far_plane(farPlane);
+        std::cout << "farPlane: " << farPlane << "  ";
+    }
+    std::cout << "\n";
+
 }
 
 void Sample::key_released(int code)

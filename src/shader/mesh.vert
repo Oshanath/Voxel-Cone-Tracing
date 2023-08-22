@@ -6,10 +6,10 @@ layout(location = 2) in vec4 VS_IN_Normal;
 layout(location = 3) in vec4 VS_IN_Tangent;
 layout(location = 4) in vec4 VS_IN_Bitangent;
 
-layout (location = 0) out vec3 FS_IN_FragPos;
+layout (location = 0) out vec4 FS_IN_FragPos;
 layout (location = 1) out vec2 FS_IN_Texcoord;
 layout (location = 2) out vec3 FS_IN_Normal;
-layout (location = 3) out vec4 FS_IN_FragPosLightSpace;
+layout (location = 3) out mat4 FS_IN_lightMatrix;
 
 layout( push_constant ) uniform constants
 {
@@ -34,10 +34,10 @@ void main()
 	vec4 world_pos = pc.model * vec4(VS_IN_Position.xyz, 1.0);
 
     // Pass world position into Fragment shader
-    FS_IN_FragPos = world_pos.xyz;
+    FS_IN_FragPos = world_pos;
 
 	// Calculate light space position of vertex and pass into fragment shader
-	FS_IN_FragPosLightSpace = ubo.lightSpaceMatrix * world_pos;
+	FS_IN_lightMatrix = ubo.lightSpaceMatrix;
 
     FS_IN_Texcoord = VS_IN_Texcoord.xy;
 
