@@ -16,18 +16,21 @@ endif()
 
 set(VCT_RENDERER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/VCTRenderer.cpp
-    ${PROJECT_SOURCE_DIR}/src/VCTRenderer.h
     ${PROJECT_SOURCE_DIR}/src/controls.cpp
-    ${PROJECT_SOURCE_DIR}/src/RendererObject.h
-    ${PROJECT_SOURCE_DIR}/external/dw-sample-framework/extras/shadow_map.cpp
-    ${PROJECT_SOURCE_DIR}/external/dw-sample-framework/extras/shadow_map.h
-    )
+    ${PROJECT_SOURCE_DIR}/src/ShadowMap.cpp
+
+    ${PROJECT_SOURCE_DIR}/include/VCTRenderer.h
+    ${PROJECT_SOURCE_DIR}/include/RendererObject.h
+    ${PROJECT_SOURCE_DIR}/include/ShadowMap.h
+     "multi_sampling.cpp" "ShadowMap.cpp")
 
 set(SHADER_SOURCES 
     ${PROJECT_SOURCE_DIR}/src/shader/mesh.vert 
     ${PROJECT_SOURCE_DIR}/src/shader/mesh.frag
     ${PROJECT_SOURCE_DIR}/src/shader/shadow.vert 
     ${PROJECT_SOURCE_DIR}/src/shader/shadow.frag)
+
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_executable(VCTRenderer ${VCT_RENDERER_SOURCES} ${SHADER_SOURCES}) 
 target_link_libraries(VCTRenderer dwSampleFramework)

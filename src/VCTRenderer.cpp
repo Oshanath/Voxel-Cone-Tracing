@@ -15,7 +15,7 @@ bool Sample::init(int argc, const char* argv[])
         return false;
 
     // Shadow map
-    m_shadow_map = std::make_unique<dw::ShadowMap>(m_vk_backend, m_shadow_map_size);
+    m_shadow_map = std::make_unique<ShadowMap>(m_vk_backend, m_shadow_map_size, m_shadow_map_size);
 
     // Shadow map sampler
     dw::vk::Sampler::Desc sampler_desc;

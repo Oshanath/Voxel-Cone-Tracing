@@ -10,7 +10,7 @@
 #include <vk_mem_alloc.h>
 #include <iostream>
 #include "RendererObject.h"
-#include <shadow_map.h>
+#include "ShadowMap.h"
 #include <debug_draw.h>
 
 // Uniform buffer data structures.
@@ -88,6 +88,8 @@ private:
     void update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf, bool shadow);
     void update_camera();
 
+    VkSampleCountFlagBits getMaxUsableSampleCount();
+
 private:
     // GPU resources.
     size_t                           m_ubo_size_main;
@@ -132,7 +134,7 @@ private:
     TransformsShadow m_transforms_shadow;
 
     // Shadow map
-    std::unique_ptr<dw::ShadowMap> m_shadow_map;
+    std::unique_ptr<ShadowMap> m_shadow_map;
     float m_shadow_map_size = 2048.0f;
     dw::vk::Sampler::Ptr m_shadow_map_sampler;
 
