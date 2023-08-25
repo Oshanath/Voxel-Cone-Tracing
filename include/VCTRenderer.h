@@ -128,7 +128,7 @@ private:
     // Assets.
     std::vector<dw::Mesh::Ptr> m_meshes;
     std::vector<RenderObject>  objects;
-
+    
     // Uniforms.
     TransformsMain m_transforms_main;
     TransformsShadow m_transforms_shadow;

@@ -21,6 +21,11 @@ private:
     float     m_backoff_distance = 200.0f;
     uint32_t  m_width = 1024;
     uint32_t  m_height = 1024;
+    
+    // Constant depth bias factor (always applied)
+    float depthBiasConstant = 1.25f;
+    // Slope depth bias factor, applied depending on polygon's slope
+    float depthBiasSlope = 1.75f;
 
 
 public:

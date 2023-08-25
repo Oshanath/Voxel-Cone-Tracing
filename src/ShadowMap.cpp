@@ -108,6 +108,10 @@ void ShadowMap::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf)
     scissor_rect.offset.y      = 0;
 
     vkCmdSetScissor(cmd_buf->handle(), 0, 1, &scissor_rect);
+
+    // Set depth bias (aka "Polygon offset")
+    // Required to avoid shadow mapping artifacts
+    vkCmdSetDepthBias(cmd_buf->handle(), depthBiasConstant, 0.0f, depthBiasSlope);
 }
 
 void ShadowMap::end_render(dw::vk::CommandBuffer::Ptr cmd_buf)
