@@ -16,6 +16,12 @@ bool Sample::init(int argc, const char* argv[])
 
     // Shadow map
     m_shadow_map = std::make_unique<ShadowMap>(m_vk_backend, m_shadow_map_size, m_shadow_map_size);
+    m_shadow_map->set_target(glm::vec3(-110.0f, 64.0f, 0.0f));
+    m_shadow_map->set_direction(glm::normalize(m_lights.lights[0].direction));
+    m_shadow_map->set_backoff_distance(6000.0f);
+    m_shadow_map->set_extents(1400.0f);
+    m_shadow_map->set_near_plane(1.0f);
+    m_shadow_map->set_far_plane(8000.0f);
 
     // Shadow map sampler
     dw::vk::Sampler::Desc sampler_desc;
@@ -533,13 +539,6 @@ inline void Sample::create_camera()
 {
     m_main_camera = std::make_unique<dw::Camera>(
         60.0f, 0.1f, m_far, float(m_width) / float(m_height), glm::vec3(0.0f, 0.0f, 100.0f), glm::vec3(0.0f, 0.0, -1.0f));
-
-    m_shadow_map->set_target(glm::vec3(-110.0f, 64.0f, 0.0f));
-    m_shadow_map->set_direction(glm::normalize(m_lights.lights[0].direction));
-    m_shadow_map->set_backoff_distance(6000.0f);
-    m_shadow_map->set_extents(2000.0f);
-    m_shadow_map->set_near_plane(1.0f);
-    m_shadow_map->set_far_plane(8000.0f);
 }
 
 void Sample::render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout)
@@ -628,6 +627,8 @@ void Sample::begin_render_shadow(dw::vk::CommandBuffer::Ptr cmd_buf)
 void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     DW_SCOPED_SAMPLE("render", cmd_buf);
+    ImGui::SliderFloat("extent", &m_shadow_map->m_extents, 0.0f, 2000.0f);
+    m_shadow_map->update();
 
     uint32_t dynamic_offset = m_ubo_size_shadow * m_vk_backend->current_frame_idx();
     begin_render_shadow(cmd_buf);
@@ -644,8 +645,8 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 3, 1, &m_ds_lights->handle(), 1, &dynamic_offset);
     render_objects(cmd_buf, m_pipeline_layout_main);
 
-    //m_debug_draw.frustum(m_shadow_map->projection(), m_shadow_map->view(), glm::vec3(1.0f, 0.0f, 0.0f));
-   // m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
+    m_debug_draw.frustum(m_shadow_map->projection(), m_shadow_map->view(), glm::vec3(1.0f, 0.0f, 0.0f));
+    m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
 
     render_gui(cmd_buf);
     vkCmdEndRenderPass(cmd_buf->handle());

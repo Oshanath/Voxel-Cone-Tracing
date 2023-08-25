@@ -18,14 +18,15 @@ private:
     glm::mat4 m_projection;
     float     m_near_plane = 1.0f;
     float     m_far_plane = 1000.0f;
-    float     m_extents = 75.0f;
     float     m_backoff_distance = 200.0f;
     uint32_t  m_width = 1024;
     uint32_t  m_height = 1024;
 
-    void update();
 
 public:
+    void update();
+    float     m_extents = 75.0f;
+
     ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_width, uint32_t m_height);
     ~ShadowMap();
     void begin_render(dw::vk::CommandBuffer::Ptr cmd_buf);

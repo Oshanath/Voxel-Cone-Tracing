@@ -1,0 +1,83 @@
+[33mcommit 27c72d2786548213962bce4f74f2d843c26e5946[m[33m ([m[1;36mHEAD -> [m[1;32mmaster[m[33m)[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Fri Aug 25 23:08:24 2023 +0530
+
+    removed cascaded but kept some changes
+
+[33mcommit 201e2fa93deab8f965fd1a57d1313545e22ab38d[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Wed Aug 23 18:23:06 2023 +0530
+
+    moved include to seperate dir. Created new ShadowMap file.
+
+[33mcommit 4d48d4c7e5a3477f7e263572fc68fa10a342ab92[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Wed Aug 23 00:54:10 2023 +0530
+
+    sun can be moved
+
+[33mcommit a06b0c3cea6bb4a3026c8312e659e63b8c1d97dd[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Tue Aug 22 23:01:02 2023 +0530
+
+    use uniform buffer in FS rather than passing from VS
+
+[33mcommit 5cfe7cd6d04e00ab09fb273bcd53e5e13a99419d[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Tue Aug 22 22:55:47 2023 +0530
+
+    shadow maps work
+
+[33mcommit 209cedd73cd2f47d41977ad5af99fc9bcd21db4d[m[33m ([m[1;31morigin/master[m[33m)[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Tue Aug 15 19:50:08 2023 +0530
+
+    shadow generation works but incorrectly
+
+[33mcommit d96bad1c128d1d8b45bece39968fa7107d524c21[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Tue Aug 15 14:17:41 2023 +0530
+
+    shadow map renders correctly
+
+[33mcommit e3164a065455e9db50d8edbba2bcd78156bf242b[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Fri Aug 11 17:01:10 2023 +0530
+
+    Shadow map creation works.
+
+[33mcommit b716a5deb762ac6476b0095ad664700a59d21557[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Thu Aug 10 12:29:45 2023 +0530
+
+    offload object rendering and increase far plane
+
+[33mcommit 6f1bda00d40bfbe1d0ff0a0269a31fc0d4f35621[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Sun Aug 6 19:04:35 2023 +0530
+
+    Multiple meshes possible
+
+[33mcommit 95ef5970020b3c2d349fbc176748ccc33d4597d7[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Sat Aug 5 00:16:43 2023 +0530
+
+    created header for main
+
+[33mcommit e6e0cfd8db17c7a05c71cc3f5bedab3f6e896eb4[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Thu Aug 3 17:01:31 2023 +0530
+
+    Vulkan works
+
+[33mcommit ec0a9bab5f0c7c1f6c98c3da4307371066883ed6[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Thu Aug 3 14:18:21 2023 +0530
+
+    Open GL sample working
+
+[33mcommit eed2cc419c29fa54a125ccf859a5ad9c56db67e2[m
+Author: Oshanath Rajawasam <oshanath.19@cse.mrt.ac.lk>
+Date:   Thu Aug 3 11:37:54 2023 +0530
+
+    Initial commit

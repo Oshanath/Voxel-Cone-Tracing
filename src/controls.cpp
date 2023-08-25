@@ -44,6 +44,11 @@ void Sample::key_pressed(int code)
     {
         y_angle -= sun_angle_delta;
     }
+
+    if (code == GLFW_KEY_P)
+    {
+        std::cout << "position: " << m_main_camera->m_position.x << m_main_camera->m_position.y << m_main_camera->m_position.z << "\n";
+    }
     
 
     m_lights.lights[0].direction = glm::angleAxis(glm::radians(y_angle), glm::vec3(0.0f, 0.0f, 1.0f)) * glm::angleAxis(glm::radians(x_angle), glm::vec3(1.0f, 0.0f, 0.0f)) * glm::vec3(0.0f, -1.0f, 0.0f);

@@ -135,7 +135,7 @@ private:
 
     // Shadow map
     std::unique_ptr<ShadowMap> m_shadow_map;
-    float m_shadow_map_size = 2048.0f;
+    float m_shadow_map_size = 10000.0f;
     dw::vk::Sampler::Ptr m_shadow_map_sampler;
 
     // Debug draw
