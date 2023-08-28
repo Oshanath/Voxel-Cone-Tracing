@@ -4,10 +4,10 @@
 #include <imgui.h>
 #include <vk_mem_alloc.h>
 
-ShadowMap::ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_width, uint32_t m_height) :
-    m_width(m_width), m_height(m_height)
+ShadowMap::ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_size, const dw::vk::VertexInputStateDesc& vertex_input_state, dw::vk::DescriptorSetLayout::Ptr ubo_ds_layout) :
+    m_size(m_size)
 {
-    m_image = dw::vk::Image::create(backend, VK_IMAGE_TYPE_2D, m_width, m_height, 1, 1, 1, VK_FORMAT_D32_SFLOAT, VMA_MEMORY_USAGE_GPU_ONLY, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED);
+    m_image      = dw::vk::Image::create(backend, VK_IMAGE_TYPE_2D, m_size, m_size, 1, 1, 1, VK_FORMAT_D32_SFLOAT, VMA_MEMORY_USAGE_GPU_ONLY, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED);
     m_image_view = dw::vk::ImageView::create(backend, m_image, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1);
 
     VkAttachmentDescription attachment;
@@ -59,9 +59,141 @@ ShadowMap::ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_width, uint32_t m_
     dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
     m_render_pass = dw::vk::RenderPass::create(backend, { attachment }, subpass_description, dependencies);
-    m_framebuffer = dw::vk::Framebuffer::create(backend, m_render_pass, { m_image_view }, m_width, m_height, 1);
+    m_framebuffer = dw::vk::Framebuffer::create(backend, m_render_pass, { m_image_view }, m_size, m_size, 1);
 
+    create_pipeline_state(backend, vertex_input_state, ubo_ds_layout);
     update();
+}
+
+void ShadowMap::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state, dw::vk::DescriptorSetLayout::Ptr ubo_ds_layout)
+{
+    // ---------------------------------------------------------------------------
+    // Create shader modules
+    // ---------------------------------------------------------------------------
+
+    dw::vk::ShaderModule::Ptr vs = dw::vk::ShaderModule::create_from_file(backend, "shaders/shadow.vert.spv");
+    dw::vk::ShaderModule::Ptr fs = dw::vk::ShaderModule::create_from_file(backend, "shaders/shadow.frag.spv");
+
+    dw::vk::GraphicsPipeline::Desc pso_desc;
+
+    pso_desc.add_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, vs, "main")
+        .add_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main");
+
+    // ---------------------------------------------------------------------------
+    // Create vertex input state
+    // ---------------------------------------------------------------------------
+
+    pso_desc.set_vertex_input_state(vertex_input_state);
+
+    // ---------------------------------------------------------------------------
+    // Create pipeline input assembly state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::InputAssemblyStateDesc input_assembly_state_desc;
+
+    input_assembly_state_desc.set_primitive_restart_enable(false)
+        .set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+    pso_desc.set_input_assembly_state(input_assembly_state_desc);
+
+    // ---------------------------------------------------------------------------
+    // Create viewport state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::ViewportStateDesc vp_desc;
+
+    vp_desc.add_viewport(0.0f, 0.0f, m_size, m_size, 0.0f, 1.0f)
+        .add_scissor(0, 0, m_size, m_size);
+
+    pso_desc.set_viewport_state(vp_desc);
+
+    // ---------------------------------------------------------------------------
+    // Create rasterization state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::RasterizationStateDesc rs_state;
+
+    rs_state.set_depth_clamp(VK_FALSE)
+        .set_rasterizer_discard_enable(VK_FALSE)
+        .set_polygon_mode(VK_POLYGON_MODE_FILL)
+        .set_line_width(1.0f)
+        .set_cull_mode(VK_CULL_MODE_BACK_BIT)
+        .set_front_face(VK_FRONT_FACE_COUNTER_CLOCKWISE)
+        .set_depth_bias(VK_FALSE);
+
+    pso_desc.set_rasterization_state(rs_state);
+
+    // ---------------------------------------------------------------------------
+    // Create multisample state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::MultisampleStateDesc ms_state;
+
+    ms_state.set_sample_shading_enable(VK_FALSE)
+        .set_rasterization_samples(VK_SAMPLE_COUNT_1_BIT);
+
+    pso_desc.set_multisample_state(ms_state);
+
+    // ---------------------------------------------------------------------------
+    // Create depth stencil state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::DepthStencilStateDesc ds_state;
+
+    ds_state.set_depth_test_enable(VK_TRUE)
+        .set_depth_write_enable(VK_TRUE)
+        .set_depth_compare_op(VK_COMPARE_OP_LESS)
+        .set_depth_bounds_test_enable(VK_FALSE)
+        .set_stencil_test_enable(VK_FALSE);
+
+    pso_desc.set_depth_stencil_state(ds_state);
+
+    // ---------------------------------------------------------------------------
+    // Create color blend state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::ColorBlendAttachmentStateDesc blend_att_desc;
+
+    blend_att_desc.set_color_write_mask(0)
+        .set_blend_enable(VK_FALSE);
+
+    dw::vk::ColorBlendStateDesc blend_state;
+
+    blend_state.set_logic_op_enable(VK_FALSE)
+        .set_logic_op(VK_LOGIC_OP_COPY)
+        .set_blend_constants(0.0f, 0.0f, 0.0f, 0.0f)
+        .add_attachment(blend_att_desc);
+
+    pso_desc.set_color_blend_state(blend_state);
+
+    // ---------------------------------------------------------------------------
+    // Create pipeline layout
+    // ---------------------------------------------------------------------------
+
+    dw::vk::PipelineLayout::Desc pl_desc;
+
+    pl_desc.add_descriptor_set_layout(ubo_ds_layout)
+        .add_descriptor_set_layout(dw::Material::descriptor_set_layout())
+        .add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
+
+    m_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
+
+    pso_desc.set_pipeline_layout(m_pipeline_layout);
+
+    // ---------------------------------------------------------------------------
+    // Create dynamic state
+    // ---------------------------------------------------------------------------
+
+    pso_desc.add_dynamic_state(VK_DYNAMIC_STATE_VIEWPORT)
+        .add_dynamic_state(VK_DYNAMIC_STATE_SCISSOR);
+
+    // ---------------------------------------------------------------------------
+    // Create pipeline
+    // ---------------------------------------------------------------------------
+
+    pso_desc.set_render_pass(m_render_pass);
+
+    m_pipeline = dw::vk::GraphicsPipeline::create(backend, pso_desc);
 }
 
 ShadowMap::~ShadowMap()
@@ -70,6 +202,8 @@ ShadowMap::~ShadowMap()
     m_render_pass.reset();
     m_image_view.reset();
     m_image.reset();
+    m_pipeline.reset();
+    m_pipeline_layout.reset();
 }
 
 void ShadowMap::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf)
@@ -82,8 +216,8 @@ void ShadowMap::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf)
     info.sType                    = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     info.renderPass               = m_render_pass->handle();
     info.framebuffer              = m_framebuffer->handle();
-    info.renderArea.extent.width  = m_width;
-    info.renderArea.extent.height = m_height;
+    info.renderArea.extent.width  = m_size;
+    info.renderArea.extent.height = m_size;
     info.clearValueCount          = 1;
     info.pClearValues             = &clear_value;
 
@@ -93,8 +227,8 @@ void ShadowMap::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     vp.x        = 0.0f;
     vp.y        = 0.0f;
-    vp.width    = (float)m_width;
-    vp.height   = (float)m_height;
+    vp.width    = (float)m_size;
+    vp.height   = (float)m_size;
     vp.minDepth = 0.0f;
     vp.maxDepth = 1.0f;
 
@@ -102,8 +236,8 @@ void ShadowMap::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     VkRect2D scissor_rect;
 
-    scissor_rect.extent.width  = m_width;
-    scissor_rect.extent.height = m_height;
+    scissor_rect.extent.width  = m_size;
+    scissor_rect.extent.height = m_size;
     scissor_rect.offset.x      = 0;
     scissor_rect.offset.y      = 0;
 

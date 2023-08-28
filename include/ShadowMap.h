@@ -1,7 +1,11 @@
+#pragma once
+
 #include <memory>
 #include <ogl.h>
 #include <glm.hpp>
 #include <vk.h>
+#include <material.h>
+#include "util.h"
 
 class ShadowMap
 {
@@ -19,20 +23,25 @@ private:
     float     m_near_plane = 1.0f;
     float     m_far_plane = 1000.0f;
     float     m_backoff_distance = 200.0f;
-    uint32_t  m_width = 1024;
-    uint32_t  m_height = 1024;
+    uint32_t  m_size = 1024;
     
     // Constant depth bias factor (always applied)
     float depthBiasConstant = 1.25f;
     // Slope depth bias factor, applied depending on polygon's slope
     float depthBiasSlope = 1.75f;
 
+    void create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state, dw::vk::DescriptorSetLayout::Ptr ubo_ds_layout);
+
 
 public:
+
+    dw::vk::GraphicsPipeline::Ptr    m_pipeline;
+    dw::vk::PipelineLayout::Ptr      m_pipeline_layout;
+
     void update();
     float     m_extents = 75.0f;
 
-    ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_width, uint32_t m_height);
+    ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_size, const dw::vk::VertexInputStateDesc& vertex_input_state, dw::vk::DescriptorSetLayout::Ptr ubo_ds_layout);
     ~ShadowMap();
     void begin_render(dw::vk::CommandBuffer::Ptr cmd_buf);
     void end_render(dw::vk::CommandBuffer::Ptr cmd_buf);

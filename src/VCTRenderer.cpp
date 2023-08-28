@@ -14,8 +14,10 @@ bool Sample::init(int argc, const char* argv[])
     if (!load_objects())
         return false;
 
+    create_descriptor_set_layouts();
+
     // Shadow map
-    m_shadow_map = std::make_unique<ShadowMap>(m_vk_backend, m_shadow_map_size, m_shadow_map_size);
+    m_shadow_map = std::make_unique<ShadowMap>(m_vk_backend, m_shadow_map_size, m_meshes[0]->vertex_input_state_desc(), m_ds_layout_ubo);
     m_shadow_map->set_target(glm::vec3(-110.0f, 64.0f, 0.0f));
     m_shadow_map->set_direction(glm::normalize(m_lights.lights[0].direction));
     m_shadow_map->set_backoff_distance(6000.0f);
@@ -41,11 +43,9 @@ bool Sample::init(int argc, const char* argv[])
     m_shadow_map_sampler = dw::vk::Sampler::create(m_vk_backend, sampler_desc);
     m_shadow_map_sampler->set_name("shadow_map_sampler");
 
-    create_descriptor_set_layouts();
     create_descriptor_sets();
     write_descriptor_sets();
     create_main_pipeline_state();
-    create_shadow_pipeline_state();
 
     // Lights
     Light light;
@@ -102,9 +102,7 @@ void Sample::shutdown()
     for (auto& object : objects)
         object.reset();
     m_graphics_pipeline_main.reset();
-    m_graphics_pipeline_shadow.reset();
     m_pipeline_layout_main.reset();
-    m_pipeline_layout_shadow.reset();
     m_ds_layout_ubo.reset();
     m_ds_layout_sampler.reset();
     m_ds_transforms_main.reset();
@@ -386,137 +384,6 @@ void Sample::create_main_pipeline_state()
     m_graphics_pipeline_main = dw::vk::GraphicsPipeline::create(m_vk_backend, pso_desc);
 }
 
-void Sample::create_shadow_pipeline_state()
-{
-    // ---------------------------------------------------------------------------
-    // Create shader modules
-    // ---------------------------------------------------------------------------
-
-    dw::vk::ShaderModule::Ptr vs = dw::vk::ShaderModule::create_from_file(m_vk_backend, "shaders/shadow.vert.spv");
-    dw::vk::ShaderModule::Ptr fs = dw::vk::ShaderModule::create_from_file(m_vk_backend, "shaders/shadow.frag.spv");
-
-    dw::vk::GraphicsPipeline::Desc pso_desc;
-
-    pso_desc.add_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, vs, "main")
-        .add_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main");
-
-    // ---------------------------------------------------------------------------
-    // Create vertex input state
-    // ---------------------------------------------------------------------------
-
-    pso_desc.set_vertex_input_state(m_meshes[0]->vertex_input_state_desc());
-
-    // ---------------------------------------------------------------------------
-    // Create pipeline input assembly state
-    // ---------------------------------------------------------------------------
-
-    dw::vk::InputAssemblyStateDesc input_assembly_state_desc;
-
-    input_assembly_state_desc.set_primitive_restart_enable(false)
-        .set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-    pso_desc.set_input_assembly_state(input_assembly_state_desc);
-
-    // ---------------------------------------------------------------------------
-    // Create viewport state
-    // ---------------------------------------------------------------------------
-
-    dw::vk::ViewportStateDesc vp_desc;
-
-    vp_desc.add_viewport(0.0f, 0.0f, m_shadow_map_size, m_shadow_map_size, 0.0f, 1.0f)
-        .add_scissor(0, 0, m_shadow_map_size, m_shadow_map_size);
-
-    pso_desc.set_viewport_state(vp_desc);
-
-    // ---------------------------------------------------------------------------
-    // Create rasterization state
-    // ---------------------------------------------------------------------------
-
-    dw::vk::RasterizationStateDesc rs_state;
-
-    rs_state.set_depth_clamp(VK_FALSE)
-        .set_rasterizer_discard_enable(VK_FALSE)
-        .set_polygon_mode(VK_POLYGON_MODE_FILL)
-        .set_line_width(1.0f)
-        .set_cull_mode(VK_CULL_MODE_BACK_BIT)
-        .set_front_face(VK_FRONT_FACE_COUNTER_CLOCKWISE)
-        .set_depth_bias(VK_FALSE);
-
-    pso_desc.set_rasterization_state(rs_state);
-
-    // ---------------------------------------------------------------------------
-    // Create multisample state
-    // ---------------------------------------------------------------------------
-
-    dw::vk::MultisampleStateDesc ms_state;
-
-    ms_state.set_sample_shading_enable(VK_FALSE)
-        .set_rasterization_samples(VK_SAMPLE_COUNT_1_BIT);
-
-    pso_desc.set_multisample_state(ms_state);
-
-    // ---------------------------------------------------------------------------
-    // Create depth stencil state
-    // ---------------------------------------------------------------------------
-
-    dw::vk::DepthStencilStateDesc ds_state;
-
-    ds_state.set_depth_test_enable(VK_TRUE)
-        .set_depth_write_enable(VK_TRUE)
-        .set_depth_compare_op(VK_COMPARE_OP_LESS)
-        .set_depth_bounds_test_enable(VK_FALSE)
-        .set_stencil_test_enable(VK_FALSE);
-
-    pso_desc.set_depth_stencil_state(ds_state);
-
-    // ---------------------------------------------------------------------------
-    // Create color blend state
-    // ---------------------------------------------------------------------------
-
-    dw::vk::ColorBlendAttachmentStateDesc blend_att_desc;
-
-    blend_att_desc.set_color_write_mask(0)
-        .set_blend_enable(VK_FALSE);
-
-    dw::vk::ColorBlendStateDesc blend_state;
-
-    blend_state.set_logic_op_enable(VK_FALSE)
-        .set_logic_op(VK_LOGIC_OP_COPY)
-        .set_blend_constants(0.0f, 0.0f, 0.0f, 0.0f)
-        .add_attachment(blend_att_desc);
-
-    pso_desc.set_color_blend_state(blend_state);
-
-    // ---------------------------------------------------------------------------
-    // Create pipeline layout
-    // ---------------------------------------------------------------------------
-
-    dw::vk::PipelineLayout::Desc pl_desc;
-
-    pl_desc.add_descriptor_set_layout(m_ds_layout_ubo)
-        .add_descriptor_set_layout(dw::Material::descriptor_set_layout())
-        .add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
-
-    m_pipeline_layout_shadow = dw::vk::PipelineLayout::create(m_vk_backend, pl_desc);
-
-    pso_desc.set_pipeline_layout(m_pipeline_layout_shadow);
-
-    // ---------------------------------------------------------------------------
-    // Create dynamic state
-    // ---------------------------------------------------------------------------
-
-    pso_desc.add_dynamic_state(VK_DYNAMIC_STATE_VIEWPORT)
-        .add_dynamic_state(VK_DYNAMIC_STATE_SCISSOR);
-
-    // ---------------------------------------------------------------------------
-    // Create pipeline
-    // ---------------------------------------------------------------------------
-
-    pso_desc.set_render_pass(m_shadow_map->render_pass());
-
-    m_graphics_pipeline_shadow = dw::vk::GraphicsPipeline::create(m_vk_backend, pso_desc);
-}
-
 bool Sample::load_object(std::string filename)
 {
     m_meshes.push_back(dw::Mesh::load(m_vk_backend, filename));
@@ -625,7 +492,7 @@ void Sample::begin_render_main(dw::vk::CommandBuffer::Ptr cmd_buf)
 void Sample::begin_render_shadow(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     m_shadow_map->begin_render(cmd_buf);
-    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline_shadow->handle());
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS,m_shadow_map->m_pipeline->handle());
 }
 
 void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
@@ -638,7 +505,7 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     begin_render_shadow(cmd_buf);
     update_uniforms(cmd_buf, true);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 0, 1, &m_ds_transforms_shadow->handle(), 1, &dynamic_offset);
-    render_objects(cmd_buf, m_pipeline_layout_shadow);
+    render_objects(cmd_buf, m_shadow_map->m_pipeline_layout);
     m_shadow_map->end_render(cmd_buf);
 
     dynamic_offset = m_ubo_size_main * m_vk_backend->current_frame_idx();

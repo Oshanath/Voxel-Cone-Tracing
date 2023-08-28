@@ -22,6 +22,7 @@ set(VCT_RENDERER_SOURCES
     ${PROJECT_SOURCE_DIR}/include/VCTRenderer.h
     ${PROJECT_SOURCE_DIR}/include/RendererObject.h
     ${PROJECT_SOURCE_DIR}/include/ShadowMap.h
+    ${PROJECT_SOURCE_DIR}/include/util.h
      "multi_sampling.cpp" "ShadowMap.cpp")
 
 set(SHADER_SOURCES 

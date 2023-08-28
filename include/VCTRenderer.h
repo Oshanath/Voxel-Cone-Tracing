@@ -12,6 +12,7 @@
 #include "RendererObject.h"
 #include "ShadowMap.h"
 #include <debug_draw.h>
+#include "util.h"
 
 // Uniform buffer data structures.
 struct TransformsMain
@@ -46,13 +47,6 @@ struct Lights
 	Light lights[1];
 };
 
-// Push constant data structure (model matrix)
-struct MeshPushConstants
-{
-    DW_ALIGNED(16)
-    glm::mat4 model;
-};
-
 class Sample : public dw::Application
 {
 protected:
@@ -75,7 +69,6 @@ private:
     inline void create_descriptor_sets();
     void write_descriptor_sets();
     void create_main_pipeline_state();
-    void create_shadow_pipeline_state();
 
     bool load_object(std::string filename);
     bool        load_objects();
@@ -96,9 +89,7 @@ private:
     size_t                           m_ubo_size_shadow;
     size_t						     m_ubo_size_lights;
     dw::vk::GraphicsPipeline::Ptr    m_graphics_pipeline_main;
-    dw::vk::GraphicsPipeline::Ptr    m_graphics_pipeline_shadow;
     dw::vk::PipelineLayout::Ptr      m_pipeline_layout_main;
-    dw::vk::PipelineLayout::Ptr      m_pipeline_layout_shadow;
     dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo;
     dw::vk::DescriptorSetLayout::Ptr m_ds_layout_sampler;
     dw::vk::DescriptorSet::Ptr       m_ds_transforms_main;
