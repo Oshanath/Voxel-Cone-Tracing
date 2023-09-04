@@ -47,7 +47,7 @@ void Sample::key_pressed(int code)
 
     if (code == GLFW_KEY_P)
     {
-        std::cout << "position: " << m_main_camera->m_position.x << m_main_camera->m_position.y << m_main_camera->m_position.z << "\n";
+        std::cout << "position: " << m_main_camera->m_position.x << ", " << m_main_camera->m_position.y << ", " << m_main_camera->m_position.z << "\n";
     }
     
 

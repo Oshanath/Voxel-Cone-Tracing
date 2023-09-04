@@ -13,6 +13,7 @@
 #include "ShadowMap.h"
 #include <debug_draw.h>
 #include "util.h"
+#include "Voxelizer.h"
 
 // Uniform buffer data structures.
 struct TransformsMain
@@ -134,4 +135,7 @@ private:
 
     // Lights
     Lights m_lights;
+
+    // VCT
+    std::unique_ptr<Voxelizer> m_voxelizer;
 };

@@ -43,6 +43,11 @@ bool Sample::init(int argc, const char* argv[])
     m_shadow_map_sampler = dw::vk::Sampler::create(m_vk_backend, sampler_desc);
     m_shadow_map_sampler->set_name("shadow_map_sampler");
 
+    // Voxelizer
+    m_voxelizer = std::make_unique<Voxelizer>(
+        glm::vec3(-1250.63f, -102.853f, 718.932f), 
+        glm::vec3(1196.01f, 907.495f, -805.504f));
+
     create_descriptor_sets();
     write_descriptor_sets();
     create_main_pipeline_state();
@@ -516,7 +521,8 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 3, 1, &m_ds_lights->handle(), 1, &dynamic_offset);
     render_objects(cmd_buf, m_pipeline_layout_main);
 
-    m_debug_draw.frustum(m_shadow_map->projection(), m_shadow_map->view(), glm::vec3(1.0f, 0.0f, 0.0f));
+    m_debug_draw.frustum(m_voxelizer->get_proj(), m_voxelizer->get_view(), glm::vec3(1.0f, 0.0f, 0.0f));
+    m_debug_draw.sphere(10.0f, m_voxelizer->get_cam_pos(), glm::vec3(0.0f, 1.0f, 0.0f));
     m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
 
     render_gui(cmd_buf);
