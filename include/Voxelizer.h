@@ -47,6 +47,7 @@ public:
 	uint32_t get_voxels_per_side() const;
 
 	void Voxelizer::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend);
+	void end_render(dw::vk::CommandBuffer::Ptr cmd_buf);
 
 private:
 	glm::vec3 m_AABB_min;

@@ -431,14 +431,9 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     m_shadow_map->end_render(cmd_buf);
 
     // Voxelization
-    /*dynamic_offset = m_ubo_size_voxelizer * m_vk_backend->current_frame_idx();
-    update_uniforms(cmd_buf, PIPELINE_VOXELIZER);
-    m_voxelizer->begin_render(cmd_buf);
-    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_pipeline->handle());
-    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_pipeline_layout->handle(), 1, 1, &m_ds_data_voxelizer->handle(), 1, &dynamic_offset);
-    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_pipeline_layout->handle(), 2, 1, &m_ds_image_voxelizer->handle(), 0, nullptr);
+    m_voxelizer->begin_render(cmd_buf, m_vk_backend);
     render_objects(cmd_buf, m_voxelizer->m_pipeline_layout);
-    vkCmdEndRenderPass(cmd_buf->handle());*/
+    m_voxelizer->end_render(cmd_buf);
 
     // Compute
     /*vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_compute_pipeline->handle());

@@ -89,22 +89,25 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     m_image      = dw::vk::Image::create(backend, VK_IMAGE_TYPE_3D, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side, 1, 1, voxel_grid_format, VMA_MEMORY_USAGE_GPU_ONLY, VK_IMAGE_USAGE_STORAGE_BIT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED);
     m_image_view = dw::vk::ImageView::create(backend, m_image, VK_IMAGE_VIEW_TYPE_3D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
 
-    VkAttachmentDescription attachment;
-    DW_ZERO_MEMORY(attachment);
-
-    // Voxel grid attachment
-    attachment.format         = voxel_grid_format;
-    attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-    attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachment.finalLayout    = VK_IMAGE_LAYOUT_GENERAL;
-
-    VkAttachmentReference att_reference;
-    att_reference.attachment = 0;
-    att_reference.layout     = VK_IMAGE_LAYOUT_GENERAL;
+    dw::vk::CommandBuffer::Ptr temp_cmd_buf = backend->allocate_graphics_command_buffer(true);
+    VkImageMemoryBarrier barrier = {};
+    barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.image                           = m_image->handle();
+    barrier.oldLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.srcAccessMask                   = 0;
+    barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel   = 0;
+    barrier.subresourceRange.levelCount     = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount     = 1;
+    vkCmdPipelineBarrier(temp_cmd_buf->handle(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
+    vkEndCommandBuffer(temp_cmd_buf->handle());
+    backend->submit_graphics({ temp_cmd_buf }, {}, {}, {});
+    backend->wait_idle();
 
     std::vector<VkSubpassDescription> subpass_description(1);
 
@@ -118,28 +121,6 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     subpass_description[0].pPreserveAttachments    = nullptr;
     subpass_description[0].pResolveAttachments     = nullptr;
 
-    //// Subpass dependencies for layout transitions
-    //std::vector<VkSubpassDependency> dependencies(2);
-
-    //dependencies[0].srcSubpass      = VK_SUBPASS_EXTERNAL;
-    //dependencies[0].dstSubpass      = 0;
-    //dependencies[0].srcStageMask    = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-    //dependencies[0].dstStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    //dependencies[0].srcAccessMask   = VK_ACCESS_MEMORY_READ_BIT;
-    //dependencies[0].dstAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    //dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-    //dependencies[1].srcSubpass      = 0;
-    //dependencies[1].dstSubpass      = VK_SUBPASS_EXTERNAL;
-    //dependencies[1].srcStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    //dependencies[1].dstStageMask    = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-    //dependencies[1].srcAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    //dependencies[1].dstAccessMask   = VK_ACCESS_MEMORY_READ_BIT;
-    //dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-    /*m_render_pass = dw::vk::RenderPass::create(backend, {attachment}, subpass_description, dependencies);
-    m_framebuffer = dw::vk::Framebuffer::create(backend, m_render_pass, {m_image_view}, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side);
-    */
     m_render_pass = dw::vk::RenderPass::create(backend, {}, subpass_description, {});
     m_framebuffer = dw::vk::Framebuffer::create(backend, m_render_pass, {}, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side);
 
@@ -197,9 +178,6 @@ uint32_t Voxelizer::get_voxels_per_side() const
 
 void Voxelizer::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
 {
-    /*VkClearValue clear_value;
-
-    clear_value.depthStencil.depth = 1.0f;*/
 
     VkRenderPassBeginInfo info    = {};
     info.sType                    = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -242,6 +220,16 @@ void Voxelizer::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend
 
     uint8_t* ptr = (uint8_t*)m_ubo_data->mapped_ptr();
     memcpy(ptr + m_ubo_size * backend->current_frame_idx(), &m_data, sizeof(VoxelizerData));
+
+    uint32_t dynamic_offset = m_ubo_size * backend->current_frame_idx();
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->handle());
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 1, 1, &m_ds_data->handle(), 1, &dynamic_offset);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 2, 1, &m_ds_image->handle(), 0, nullptr);
+}
+
+void Voxelizer::end_render(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+    vkCmdEndRenderPass(cmd_buf->handle());
 }
 
 void Voxelizer::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state)
