@@ -19,6 +19,7 @@ set(VCT_RENDERER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/controls.cpp
     ${PROJECT_SOURCE_DIR}/src/ShadowMap.cpp
     ${PROJECT_SOURCE_DIR}/src/Voxelizer.cpp
+    ${PROJECT_SOURCE_DIR}/src/util.cpp
 
     ${PROJECT_SOURCE_DIR}/include/VCTRenderer.h
     ${PROJECT_SOURCE_DIR}/include/RendererObject.h
