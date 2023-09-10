@@ -1,21 +1,166 @@
 #include "Voxelizer.h"
 #include <gtc/matrix_transform.hpp>
+#include <vk_mem_alloc.h>
+#include <algorithm>
+#include <material.h>
 
-Voxelizer::Voxelizer(glm::vec3 AABB_min, glm::vec3 AABB_max) :
+float Voxelizer::get_length(glm::vec3 AABB_min, glm::vec3 AABB_max) const
+{
+    float x_length = std::abs(AABB_min.x - AABB_max.x);
+    float y_length = std::abs(AABB_min.y - AABB_max.y);
+    float z_length = std::abs(AABB_min.z - AABB_max.z);
+
+    return max(x_length, max(y_length, z_length));
+}
+
+void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
+{
+    m_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelizerData));
+    m_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    dw::vk::DescriptorSetLayout::Desc desc;
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+    m_ds_layout_ubo = dw::vk::DescriptorSetLayout::create(backend, desc);
+
+    DW_ZERO_MEMORY(desc);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
+    m_ds_layout_image = dw::vk::DescriptorSetLayout::create(backend, desc);
+
+    m_ds_data  = backend->allocate_descriptor_set(m_ds_layout_ubo);
+    m_ds_image = backend->allocate_descriptor_set(m_ds_layout_image);
+
+    // -------------------------------------------------------------------
+
+    VkDescriptorBufferInfo buffer_info;
+    VkWriteDescriptorSet   write_data;
+    VkDescriptorImageInfo  image_info;
+
+    // UBO
+    DW_ZERO_MEMORY(buffer_info);
+    DW_ZERO_MEMORY(write_data);
+
+    buffer_info.buffer = m_ubo_data->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = sizeof(VoxelizerData);
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    write_data.pBufferInfo     = &buffer_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_data->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+
+    // 3D texture
+
+    // Voxelizer 3D image
+    DW_ZERO_MEMORY(write_data);
+    DW_ZERO_MEMORY(image_info);
+
+    image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    image_info.imageView   = m_image_view->handle();
+    image_info.sampler     = nullptr;
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    write_data.pImageInfo      = &image_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_image->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+    
+}
+
+Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state) :
     m_AABB_min(AABB_min), m_AABB_max(AABB_max),
     m_center((AABB_min + AABB_max) / 2.0f),
-    m_x_length(std::abs(AABB_min.x - AABB_max.x)),
-    m_y_length(std::abs(AABB_min.y - AABB_max.y)),
-    m_z_length(std::abs(AABB_min.z - AABB_max.z)),
-    m_cam_pos(m_center + glm::vec3(m_x_length / 2 + 100.0f, 0.0f, 0.0f)),
-    m_cam_forward(glm::vec3(1.0f, 0.0f, 0.0f)),
+    m_length(get_length(AABB_min, AABB_max)),
+    m_cam_pos(m_center + glm::vec3(m_length / 2, 0.0f, 0.0f)),
+    m_cam_forward(glm::vec3(-1.0f, 0.0f, 0.0f)),
     m_view(glm::lookAt(m_cam_pos, m_center, glm::vec3(0.0f, 1.0f, 0.0f))),
-    m_proj(glm::ortho(-m_z_length / 2, m_z_length / 2, -m_y_length / 2, m_y_length / 2, 0.0f, m_x_length))
+    m_proj(glm::ortho(-m_length / 2, m_length / 2, -m_length / 2, m_length / 2, 0.0f, m_length)),
+    m_voxels_per_side(voxels_per_side)
 {
+
+    VkFormat voxel_grid_format = VK_FORMAT_R8G8B8A8_UNORM;
+
+    m_image      = dw::vk::Image::create(backend, VK_IMAGE_TYPE_3D, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side, 1, 1, voxel_grid_format, VMA_MEMORY_USAGE_GPU_ONLY, VK_IMAGE_USAGE_STORAGE_BIT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED);
+    m_image_view = dw::vk::ImageView::create(backend, m_image, VK_IMAGE_VIEW_TYPE_3D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
+
+    VkAttachmentDescription attachment;
+    DW_ZERO_MEMORY(attachment);
+
+    // Voxel grid attachment
+    attachment.format         = voxel_grid_format;
+    attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+    attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+    attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachment.finalLayout    = VK_IMAGE_LAYOUT_GENERAL;
+
+    VkAttachmentReference att_reference;
+    att_reference.attachment = 0;
+    att_reference.layout     = VK_IMAGE_LAYOUT_GENERAL;
+
+    std::vector<VkSubpassDescription> subpass_description(1);
+
+    subpass_description[0].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass_description[0].colorAttachmentCount    = 0;
+    subpass_description[0].pColorAttachments       = nullptr;
+    subpass_description[0].pDepthStencilAttachment = nullptr;
+    subpass_description[0].inputAttachmentCount    = 0;
+    subpass_description[0].pInputAttachments       = nullptr;
+    subpass_description[0].preserveAttachmentCount = 0;
+    subpass_description[0].pPreserveAttachments    = nullptr;
+    subpass_description[0].pResolveAttachments     = nullptr;
+
+    //// Subpass dependencies for layout transitions
+    //std::vector<VkSubpassDependency> dependencies(2);
+
+    //dependencies[0].srcSubpass      = VK_SUBPASS_EXTERNAL;
+    //dependencies[0].dstSubpass      = 0;
+    //dependencies[0].srcStageMask    = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    //dependencies[0].dstStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    //dependencies[0].srcAccessMask   = VK_ACCESS_MEMORY_READ_BIT;
+    //dependencies[0].dstAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    //dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    //dependencies[1].srcSubpass      = 0;
+    //dependencies[1].dstSubpass      = VK_SUBPASS_EXTERNAL;
+    //dependencies[1].srcStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    //dependencies[1].dstStageMask    = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    //dependencies[1].srcAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    //dependencies[1].dstAccessMask   = VK_ACCESS_MEMORY_READ_BIT;
+    //dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    /*m_render_pass = dw::vk::RenderPass::create(backend, {attachment}, subpass_description, dependencies);
+    m_framebuffer = dw::vk::Framebuffer::create(backend, m_render_pass, {m_image_view}, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side);
+    */
+    m_render_pass = dw::vk::RenderPass::create(backend, {}, subpass_description, {});
+    m_framebuffer = dw::vk::Framebuffer::create(backend, m_render_pass, {}, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side);
+
+    create_descriptor_sets(backend);
+    create_pipeline_state(backend, vertex_input_state);
+    create_visualizer_pipeline_state(backend);
 }
 
 Voxelizer::~Voxelizer()
 {
+    //m_framebuffer.reset();
+    m_render_pass.reset();
+    m_image_view.reset();
+    m_image.reset();
+    m_pipeline.reset();
+    m_ubo_data.reset();
+    m_ds_data.reset();
+    m_ds_image.reset();
+    m_ds_layout_image.reset();
+    m_ds_layout_ubo.reset();
+    m_pipeline_layout.reset();
 }
 
 glm::vec3 Voxelizer::get_center() const
@@ -36,4 +181,211 @@ glm::mat4 Voxelizer::get_proj() const
 glm::vec3 Voxelizer::get_cam_pos() const
 {
     return m_cam_pos;
+}
+
+AABB Voxelizer::get_AABB() const
+{
+    glm::vec3 min = m_center - glm::vec3(m_length / 2, m_length / 2, m_length / 2);
+    glm::vec3 max = m_center + glm::vec3(m_length / 2, m_length / 2, m_length / 2);
+    return AABB { min, max };
+}
+
+uint32_t Voxelizer::get_voxels_per_side() const
+{
+    return m_voxels_per_side;
+}
+
+void Voxelizer::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
+{
+    /*VkClearValue clear_value;
+
+    clear_value.depthStencil.depth = 1.0f;*/
+
+    VkRenderPassBeginInfo info    = {};
+    info.sType                    = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    info.renderPass               = m_render_pass->handle();
+    info.framebuffer              = m_framebuffer->handle();
+    info.renderArea.extent.width  = m_voxels_per_side;
+    info.renderArea.extent.height = m_voxels_per_side;
+    info.clearValueCount          = 0;
+    info.pClearValues             = nullptr;
+
+    vkCmdBeginRenderPass(cmd_buf->handle(), &info, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->handle());
+
+    VkViewport vp;
+
+    vp.x        = 0.0f;
+    vp.y        = 0.0f;
+    vp.width    = (float)m_voxels_per_side;
+    vp.height   = (float)m_voxels_per_side;
+    vp.minDepth = 0.0f;
+    vp.maxDepth = 1.0f;
+
+    vkCmdSetViewport(cmd_buf->handle(), 0, 1, &vp);
+
+    VkRect2D scissor_rect;
+
+    scissor_rect.extent.width  = m_voxels_per_side;
+    scissor_rect.extent.height = m_voxels_per_side;
+    scissor_rect.offset.x      = 0;
+    scissor_rect.offset.y      = 0;
+
+    vkCmdSetScissor(cmd_buf->handle(), 0, 1, &scissor_rect);
+
+    m_data.view       = get_view();
+    m_data.projection = get_proj();
+
+    AABB aabb                 = get_AABB();
+    m_data.AABB_min = glm::vec4(aabb.min, float(get_voxels_per_side()));
+    m_data.AABB_max = aabb.max;
+
+    uint8_t* ptr = (uint8_t*)m_ubo_data->mapped_ptr();
+    memcpy(ptr + m_ubo_size * backend->current_frame_idx(), &m_data, sizeof(VoxelizerData));
+}
+
+void Voxelizer::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state)
+{
+    // ---------------------------------------------------------------------------
+    // Create shader modules
+    // ---------------------------------------------------------------------------
+
+    dw::vk::ShaderModule::Ptr vs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel.vert.spv");
+    dw::vk::ShaderModule::Ptr fs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel.frag.spv");
+    dw::vk::ShaderModule::Ptr gs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel.geom.spv");
+
+    dw::vk::GraphicsPipeline::Desc pso_desc;
+
+    pso_desc.add_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, vs, "main")
+            .add_shader_stage(VK_SHADER_STAGE_GEOMETRY_BIT, gs, "main")
+            .add_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main");
+
+    // ---------------------------------------------------------------------------
+    // Create vertex input state
+    // ---------------------------------------------------------------------------
+
+    pso_desc.set_vertex_input_state(vertex_input_state);
+
+    // ---------------------------------------------------------------------------
+    // Create pipeline input assembly state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::InputAssemblyStateDesc input_assembly_state_desc;
+
+    input_assembly_state_desc.set_primitive_restart_enable(false)
+        .set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+    pso_desc.set_input_assembly_state(input_assembly_state_desc);
+
+    // ---------------------------------------------------------------------------
+    // Create viewport state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::ViewportStateDesc vp_desc;
+
+    vp_desc.add_viewport(0.0f, 0.0f, m_voxels_per_side, m_voxels_per_side, 0.0f, 1.0f)
+        .add_scissor(0, 0, m_voxels_per_side, m_voxels_per_side);
+
+    pso_desc.set_viewport_state(vp_desc);
+
+    // ---------------------------------------------------------------------------
+    // Create rasterization state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::RasterizationStateDesc rs_state;
+
+    rs_state.set_depth_clamp(VK_FALSE)
+        .set_rasterizer_discard_enable(VK_FALSE)
+        .set_polygon_mode(VK_POLYGON_MODE_FILL)
+        .set_line_width(1.0f)
+        .set_cull_mode(VK_CULL_MODE_NONE)
+        .set_front_face(VK_FRONT_FACE_COUNTER_CLOCKWISE)
+        .set_depth_bias(VK_FALSE);
+
+    pso_desc.set_rasterization_state(rs_state);
+
+    // ---------------------------------------------------------------------------
+    // Create multisample state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::MultisampleStateDesc ms_state;
+
+    ms_state.set_sample_shading_enable(VK_FALSE)
+        .set_rasterization_samples(VK_SAMPLE_COUNT_1_BIT);
+
+    pso_desc.set_multisample_state(ms_state);
+
+    // ---------------------------------------------------------------------------
+    // Create depth stencil state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::DepthStencilStateDesc ds_state;
+
+    ds_state.set_depth_test_enable(VK_FALSE)
+        .set_depth_write_enable(VK_TRUE)
+        .set_depth_compare_op(VK_COMPARE_OP_LESS)
+        .set_depth_bounds_test_enable(VK_FALSE)
+        .set_stencil_test_enable(VK_FALSE);
+
+    pso_desc.set_depth_stencil_state(ds_state);
+
+    // ---------------------------------------------------------------------------
+    // Create color blend state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::ColorBlendAttachmentStateDesc blend_att_desc;
+
+    blend_att_desc.set_color_write_mask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+        .set_blend_enable(VK_FALSE);
+
+    dw::vk::ColorBlendStateDesc blend_state;
+
+    blend_state.set_logic_op_enable(VK_FALSE)
+        .set_logic_op(VK_LOGIC_OP_COPY)
+        .set_blend_constants(0.0f, 0.0f, 0.0f, 0.0f)
+        .add_attachment(blend_att_desc);
+
+    pso_desc.set_color_blend_state(blend_state);
+
+    // ---------------------------------------------------------------------------
+    // Create pipeline layout
+    // ---------------------------------------------------------------------------
+
+    dw::vk::PipelineLayout::Desc pl_desc;
+
+    pl_desc.add_descriptor_set_layout(dw::Material::descriptor_set_layout())
+        .add_descriptor_set_layout(m_ds_layout_ubo)
+        .add_descriptor_set_layout(m_ds_layout_image);
+    pl_desc.add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
+
+    m_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
+
+    pso_desc.set_pipeline_layout(m_pipeline_layout);
+
+    // ---------------------------------------------------------------------------
+    // Create dynamic state
+    // ---------------------------------------------------------------------------
+
+    pso_desc.add_dynamic_state(VK_DYNAMIC_STATE_VIEWPORT)
+        .add_dynamic_state(VK_DYNAMIC_STATE_SCISSOR);
+
+    // ---------------------------------------------------------------------------
+    // Create pipeline
+    // ---------------------------------------------------------------------------
+
+    pso_desc.set_render_pass(m_render_pass);
+
+    m_pipeline = dw::vk::GraphicsPipeline::create(backend, pso_desc);
+}
+
+void Voxelizer::create_visualizer_pipeline_state(dw::vk::Backend::Ptr backend)
+{
+    dw::vk::ShaderModule::Ptr cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel.comp.spv");
+    dw::vk::ComputePipeline::Desc  pso_desc;
+    pso_desc.set_shader_stage(cs, "main");
+    dw::vk::PipelineLayout::Desc pl_desc;
+    pl_desc.add_descriptor_set_layout(m_ds_layout_image);
+    m_compute_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
+    pso_desc.set_pipeline_layout(m_pipeline_layout);
+    m_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
 }

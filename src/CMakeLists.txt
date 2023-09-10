@@ -29,9 +29,12 @@ set(VCT_RENDERER_SOURCES
 set(SHADER_SOURCES 
     ${PROJECT_SOURCE_DIR}/src/shader/mesh.vert 
     ${PROJECT_SOURCE_DIR}/src/shader/mesh.frag
-    ${PROJECT_SOURCE_DIR}/src/shader/mesh.geom
     ${PROJECT_SOURCE_DIR}/src/shader/shadow.vert 
-    ${PROJECT_SOURCE_DIR}/src/shader/shadow.frag)
+    ${PROJECT_SOURCE_DIR}/src/shader/shadow.frag
+    ${PROJECT_SOURCE_DIR}/src/shader/voxel.vert
+    ${PROJECT_SOURCE_DIR}/src/shader/voxel.geom
+    ${PROJECT_SOURCE_DIR}/src/shader/voxel.frag
+    ${PROJECT_SOURCE_DIR}/src/shader/voxel.comp)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 

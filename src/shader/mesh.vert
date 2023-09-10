@@ -15,17 +15,12 @@ layout( push_constant ) uniform constants
 	mat4 model;
 } pc;
 
-layout (set = 0, binding = 0) uniform PerFrameUBO 
+layout (set = 1, binding = 0) uniform PerFrameUBO 
 {
 	mat4 view;
 	mat4 projection;
 	mat4 lightSpaceMatrix;
 } ubo;
-
-out gl_PerVertex
-{
-	vec4 gl_Position;
-};
 
 void main() 
 {

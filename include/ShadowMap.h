@@ -7,6 +7,14 @@
 #include <material.h>
 #include "util.h"
 
+struct TransformsShadow
+{
+    DW_ALIGNED(16)
+        glm::mat4 view;
+    DW_ALIGNED(16)
+        glm::mat4 projection;
+};
+
 class ShadowMap
 {
 private:
@@ -14,6 +22,10 @@ private:
     dw::vk::ImageView::Ptr   m_image_view;
     dw::vk::Framebuffer::Ptr m_framebuffer;
     dw::vk::RenderPass::Ptr  m_render_pass;
+
+    size_t m_ubo_size;
+    TransformsShadow m_transforms;
+    dw::vk::Buffer::Ptr              m_ubo_transforms;
 
     glm::vec3 m_light_target = glm::vec3(0.0f);
     glm::vec3 m_light_direction = glm::vec3(0.0f, -1.0f, 0.0f);
@@ -30,7 +42,8 @@ private:
     // Slope depth bias factor, applied depending on polygon's slope
     float depthBiasSlope = 1.75f;
 
-    void create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state, dw::vk::DescriptorSetLayout::Ptr ubo_ds_layout);
+    void create_descriptor_sets(dw::vk::Backend::Ptr backend);
+    void create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state);
 
 
 public:
@@ -38,12 +51,18 @@ public:
     dw::vk::GraphicsPipeline::Ptr    m_pipeline;
     dw::vk::PipelineLayout::Ptr      m_pipeline_layout;
 
+    dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo;
+    dw::vk::DescriptorSetLayout::Ptr m_ds_layout_sampler;
+    dw::vk::DescriptorSet::Ptr       m_ds_transforms;
+    dw::vk::DescriptorSet::Ptr       m_ds_shadow_sampler;
+    dw::vk::Sampler::Ptr             m_shadow_map_sampler;
+
     void update();
     float     m_extents = 75.0f;
 
-    ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_size, const dw::vk::VertexInputStateDesc& vertex_input_state, dw::vk::DescriptorSetLayout::Ptr ubo_ds_layout);
+    ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_size, const dw::vk::VertexInputStateDesc& vertex_input_state);
     ~ShadowMap();
-    void begin_render(dw::vk::CommandBuffer::Ptr cmd_buf);
+    void begin_render(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend);
     void end_render(dw::vk::CommandBuffer::Ptr cmd_buf);
 
     void gui();

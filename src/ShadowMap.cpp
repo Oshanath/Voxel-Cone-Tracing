@@ -4,7 +4,7 @@
 #include <imgui.h>
 #include <vk_mem_alloc.h>
 
-ShadowMap::ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_size, const dw::vk::VertexInputStateDesc& vertex_input_state, dw::vk::DescriptorSetLayout::Ptr ubo_ds_layout) :
+ShadowMap::ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_size, const dw::vk::VertexInputStateDesc& vertex_input_state) :
     m_size(m_size)
 {
     m_image      = dw::vk::Image::create(backend, VK_IMAGE_TYPE_2D, m_size, m_size, 1, 1, 1, VK_FORMAT_D32_SFLOAT, VMA_MEMORY_USAGE_GPU_ONLY, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED);
@@ -61,11 +61,96 @@ ShadowMap::ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_size, const dw::vk
     m_render_pass = dw::vk::RenderPass::create(backend, { attachment }, subpass_description, dependencies);
     m_framebuffer = dw::vk::Framebuffer::create(backend, m_render_pass, { m_image_view }, m_size, m_size, 1);
 
-    create_pipeline_state(backend, vertex_input_state, ubo_ds_layout);
+    // Shadow map sampler
+    dw::vk::Sampler::Desc sampler_desc;
+    DW_ZERO_MEMORY(sampler_desc);
+    sampler_desc.mag_filter     = VK_FILTER_LINEAR;
+    sampler_desc.min_filter     = VK_FILTER_LINEAR;
+    sampler_desc.mipmap_mode    = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler_desc.address_mode_u = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_desc.address_mode_v = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_desc.address_mode_w = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_desc.mip_lod_bias   = 0.0f;
+    sampler_desc.max_anisotropy = 1.0f;
+    sampler_desc.min_lod        = 0.0f;
+    sampler_desc.max_lod        = 1.0f;
+    sampler_desc.compare_enable = VK_FALSE;
+    sampler_desc.compare_op     = VK_COMPARE_OP_NEVER;
+    m_shadow_map_sampler        = dw::vk::Sampler::create(backend, sampler_desc);
+    m_shadow_map_sampler->set_name("shadow_map_sampler");
+
+    create_descriptor_sets(backend);
+    create_pipeline_state(backend, vertex_input_state);
     update();
 }
 
-void ShadowMap::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state, dw::vk::DescriptorSetLayout::Ptr ubo_ds_layout)
+void ShadowMap::create_descriptor_sets(dw::vk::Backend::Ptr backend)
+{
+
+    m_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(TransformsShadow));
+    m_ubo_transforms = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    dw::vk::DescriptorSetLayout::Desc desc;
+
+    // UBO layout
+    DW_ZERO_MEMORY(desc);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+    m_ds_layout_ubo = dw::vk::DescriptorSetLayout::create(backend, desc);
+
+    // Shadow map sampler layout
+    DW_ZERO_MEMORY(desc);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
+    m_ds_layout_sampler = dw::vk::DescriptorSetLayout::create(backend, desc);
+
+    m_ds_transforms = backend->allocate_descriptor_set(m_ds_layout_ubo);
+    m_ds_shadow_sampler = backend->allocate_descriptor_set(m_ds_layout_sampler);
+
+    // --------------------------------------------------------------------------
+
+    VkDescriptorBufferInfo buffer_info;
+    VkWriteDescriptorSet   write_data;
+    VkDescriptorImageInfo  image_info;
+
+    // UBO
+    DW_ZERO_MEMORY(buffer_info);
+    DW_ZERO_MEMORY(write_data);
+
+    buffer_info.buffer = m_ubo_transforms->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = sizeof(TransformsShadow);
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    write_data.pBufferInfo     = &buffer_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_transforms->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+
+
+    // Shadow sampler
+    DW_ZERO_MEMORY(image_info);
+    DW_ZERO_MEMORY(write_data);
+
+    image_info.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    image_info.imageView   = m_image_view->handle();
+    image_info.sampler     = m_shadow_map_sampler->handle();
+
+    DW_ZERO_MEMORY(write_data);
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write_data.pImageInfo      = &image_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_shadow_sampler->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+
+}
+
+void ShadowMap::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state)
 {
     // ---------------------------------------------------------------------------
     // Create shader modules
@@ -172,8 +257,8 @@ void ShadowMap::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk
 
     dw::vk::PipelineLayout::Desc pl_desc;
 
-    pl_desc.add_descriptor_set_layout(ubo_ds_layout)
-        .add_descriptor_set_layout(dw::Material::descriptor_set_layout())
+    pl_desc.add_descriptor_set_layout(dw::Material::descriptor_set_layout())
+        .add_descriptor_set_layout(m_ds_layout_ubo)
         .add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
 
     m_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
@@ -202,11 +287,17 @@ ShadowMap::~ShadowMap()
     m_render_pass.reset();
     m_image_view.reset();
     m_image.reset();
+    m_shadow_map_sampler.reset();
+    m_ubo_transforms.reset();
+    m_ds_transforms.reset();
+    m_ds_shadow_sampler.reset();
     m_pipeline.reset();
+    m_ds_layout_ubo.reset();
+    m_ds_layout_sampler.reset();
     m_pipeline_layout.reset();
 }
 
-void ShadowMap::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf)
+void ShadowMap::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
 {
     VkClearValue clear_value;
 
@@ -246,6 +337,16 @@ void ShadowMap::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf)
     // Set depth bias (aka "Polygon offset")
     // Required to avoid shadow mapping artifacts
     vkCmdSetDepthBias(cmd_buf->handle(), depthBiasConstant, 0.0f, depthBiasSlope);
+
+    // update buffers
+    m_transforms.view       = m_view;
+    m_transforms.projection = m_projection;
+    uint8_t* ptr                   = (uint8_t*)m_ubo_transforms->mapped_ptr();
+    memcpy(ptr + m_ubo_size * backend->current_frame_idx(), &m_transforms, sizeof(TransformsShadow));
+
+    uint32_t dynamic_offset = m_ubo_size * backend->current_frame_idx();
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->handle());
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 1, 1, &m_ds_transforms->handle(), 1, &dynamic_offset);
 }
 
 void ShadowMap::end_render(dw::vk::CommandBuffer::Ptr cmd_buf)

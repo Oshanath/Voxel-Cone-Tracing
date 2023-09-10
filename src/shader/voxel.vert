@@ -6,7 +6,7 @@ layout(location = 2) in vec4 VS_IN_Normal;
 layout(location = 3) in vec4 VS_IN_Tangent;
 layout(location = 4) in vec4 VS_IN_Bitangent;
 
-layout (location = 0) out vec3 FS_IN_FragPos;
+layout (location = 0) out vec4 FS_IN_FragPos;
 layout (location = 1) out vec2 FS_IN_Texcoord;
 layout (location = 2) out vec3 FS_IN_Normal;
 
@@ -16,15 +16,12 @@ layout( push_constant ) uniform constants
 } pc;
 
 layout (set = 1, binding = 0) uniform PerFrameUBO 
-{
+{	
 	mat4 view;
 	mat4 projection;
+	vec4 aabb_min;
+	vec3 aabb_max;
 } ubo;
-
-out gl_PerVertex
-{
-	vec4 gl_Position;
-};
 
 void main() 
 {
@@ -32,7 +29,7 @@ void main()
 	vec4 world_pos = pc.model * vec4(VS_IN_Position.xyz, 1.0);
 
     // Pass world position into Fragment shader
-    FS_IN_FragPos = world_pos.xyz;
+    FS_IN_FragPos = world_pos;
 
     FS_IN_Texcoord = VS_IN_Texcoord.xy;
 

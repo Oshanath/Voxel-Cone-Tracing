@@ -26,14 +26,6 @@ struct TransformsMain
     glm::mat4 lightSpaceMatrix;
 };
 
-struct TransformsShadow
-{
-    DW_ALIGNED(16)
-    glm::mat4 view;
-    DW_ALIGNED(16)
-    glm::mat4 projection;
-};
-
 struct Light
 {
 	glm::vec4 position;
@@ -77,9 +69,8 @@ private:
 
     void render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout);
     void begin_render_main(dw::vk::CommandBuffer::Ptr cmd_buf);
-    void begin_render_shadow(dw::vk::CommandBuffer::Ptr cmd_buf);
     void render(dw::vk::CommandBuffer::Ptr cmd_buf);
-    void update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf, bool shadow);
+    void update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf, PipelineType type);
     void update_camera();
 
     VkSampleCountFlagBits getMaxUsableSampleCount();
@@ -87,18 +78,17 @@ private:
 private:
     // GPU resources.
     size_t                           m_ubo_size_main;
-    size_t                           m_ubo_size_shadow;
     size_t						     m_ubo_size_lights;
+
     dw::vk::GraphicsPipeline::Ptr    m_graphics_pipeline_main;
     dw::vk::PipelineLayout::Ptr      m_pipeline_layout_main;
+
     dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo;
-    dw::vk::DescriptorSetLayout::Ptr m_ds_layout_sampler;
+
     dw::vk::DescriptorSet::Ptr       m_ds_transforms_main;
-    dw::vk::DescriptorSet::Ptr       m_ds_transforms_shadow;
-    dw::vk::DescriptorSet::Ptr       m_ds_shadow_sampler;
     dw::vk::DescriptorSet::Ptr       m_ds_lights;
+
     dw::vk::Buffer::Ptr              m_ubo_transforms_main;
-    dw::vk::Buffer::Ptr              m_ubo_transforms_shadow;
     dw::vk::Buffer::Ptr			     m_ubo_lights;
 
     // Camera.
@@ -123,12 +113,10 @@ private:
     
     // Uniforms.
     TransformsMain m_transforms_main;
-    TransformsShadow m_transforms_shadow;
 
     // Shadow map
     std::unique_ptr<ShadowMap> m_shadow_map;
     float m_shadow_map_size = 10000.0f;
-    dw::vk::Sampler::Ptr m_shadow_map_sampler;
 
     // Debug draw
     dw::DebugDraw m_debug_draw;
