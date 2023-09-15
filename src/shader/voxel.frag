@@ -39,6 +39,6 @@ void main()
 		get_index(min_grid_space.z, max_grid_space.z, frag_grid_space.z, voxels_per_side)
 	);
 
-	const uvec4 voxel = uvec4(1.0, 1.0, 1.0, 1.0);
+	const vec4 voxel = vec4(0.5, 0.5, 0.5, 1.0);
     imageStore(voxelTexture, voxel_coordinate, voxel);
 }

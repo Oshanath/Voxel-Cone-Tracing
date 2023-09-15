@@ -377,3 +377,11 @@ void Voxelizer::create_visualizer_pipeline_state(dw::vk::Backend::Ptr backend)
     pso_desc.set_pipeline_layout(m_pipeline_layout);
     m_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
 }
+
+void Voxelizer::reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
+{
+    // Compute
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_compute_pipeline->handle());
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_compute_pipeline_layout->handle(), 0, 1, &m_ds_image->handle(), 0, nullptr);
+    vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);
+}

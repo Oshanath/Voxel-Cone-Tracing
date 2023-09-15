@@ -126,4 +126,5 @@ private:
 
     // VCT
     std::unique_ptr<Voxelizer> m_voxelizer;
+    std::vector<dw::vk::Fence::Ptr> m_compute_fences;
 };

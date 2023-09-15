@@ -50,6 +50,10 @@ bool Sample::init(int argc, const char* argv[])
     m_debug_draw.init(m_vk_backend, m_vk_backend->swapchain_render_pass());
     m_debug_draw.set_depth_test(true);
 
+    m_compute_fences = std::vector<dw::vk::Fence::Ptr>(m_vk_backend->kMaxFramesInFlight);
+    for (auto& fence : m_compute_fences)
+		fence = dw::vk::Fence::create(m_vk_backend);
+
     return true;
 }
 
@@ -57,11 +61,16 @@ void Sample::update(double delta)
 {
     dw::vk::CommandBuffer::Ptr cmd_buf = m_vk_backend->allocate_graphics_command_buffer();
 
+    dw::vk::CommandBuffer::Ptr compute_cmd_buf = m_vk_backend->allocate_compute_command_buffer(true);
+    vkWaitForFences(m_vk_backend->device(), 1, &m_compute_fences[m_vk_backend->current_frame_idx()]->handle(), VK_TRUE, UINT64_MAX);
+    m_voxelizer->reset_voxel_grid(compute_cmd_buf, m_vk_backend);
+    vkResetFences(m_vk_backend->device(), 1, &m_compute_fences[m_vk_backend->current_frame_idx()]->handle());
+    vkEndCommandBuffer(compute_cmd_buf->handle());
+    m_vk_backend->submit_compute({compute_cmd_buf}, {}, {}, {});
+
     VkCommandBufferBeginInfo begin_info;
     DW_ZERO_MEMORY(begin_info);
-
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
     vkBeginCommandBuffer(cmd_buf->handle(), &begin_info);
 
     {
@@ -431,14 +440,9 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     m_shadow_map->end_render(cmd_buf);
 
     // Voxelization
-    m_voxelizer->begin_render(cmd_buf, m_vk_backend);
+    /*m_voxelizer->begin_render(cmd_buf, m_vk_backend);
     render_objects(cmd_buf, m_voxelizer->m_pipeline_layout);
-    m_voxelizer->end_render(cmd_buf);
-
-    // Compute
-    /*vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_compute_pipeline->handle());
-    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_compute_pipeline_layout->handle(), 0, 1, &m_ds_image_voxelizer->handle(), 0, nullptr);
-    vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);*/
+    m_voxelizer->end_render(cmd_buf);*/
 
     uint32_t dynamic_offset         = m_ubo_size_main * m_vk_backend->current_frame_idx();
     uint32_t lights_dynamic_offset = m_ubo_size_lights * m_vk_backend->current_frame_idx();
