@@ -61,13 +61,6 @@ void Sample::update(double delta)
 {
     dw::vk::CommandBuffer::Ptr cmd_buf = m_vk_backend->allocate_graphics_command_buffer();
 
-    dw::vk::CommandBuffer::Ptr compute_cmd_buf = m_vk_backend->allocate_compute_command_buffer(true);
-    vkWaitForFences(m_vk_backend->device(), 1, &m_compute_fences[m_vk_backend->current_frame_idx()]->handle(), VK_TRUE, UINT64_MAX);
-    m_voxelizer->reset_voxel_grid(compute_cmd_buf, m_vk_backend);
-    vkResetFences(m_vk_backend->device(), 1, &m_compute_fences[m_vk_backend->current_frame_idx()]->handle());
-    vkEndCommandBuffer(compute_cmd_buf->handle());
-    m_vk_backend->submit_compute({compute_cmd_buf}, {}, {}, {});
-
     VkCommandBufferBeginInfo begin_info;
     DW_ZERO_MEMORY(begin_info);
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -97,6 +90,8 @@ void Sample::shutdown()
         mesh.reset();
     for (auto& object : objects)
         object.reset();
+    for (auto& fence : m_compute_fences)
+        fence.reset();
     m_graphics_pipeline_main.reset();
     m_pipeline_layout_main.reset();
     m_ds_layout_ubo.reset();
@@ -438,6 +433,9 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     m_shadow_map->begin_render(cmd_buf, m_vk_backend);
     render_objects(cmd_buf, m_shadow_map->m_pipeline_layout);
     m_shadow_map->end_render(cmd_buf);
+
+    m_voxelizer->transition_voxel_grid(cmd_buf);
+    m_voxelizer->reset_voxel_grid(cmd_buf);
 
     // Voxelization
     /*m_voxelizer->begin_render(cmd_buf, m_vk_backend);

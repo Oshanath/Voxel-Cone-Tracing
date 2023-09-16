@@ -48,7 +48,8 @@ public:
 
 	void Voxelizer::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend);
 	void end_render(dw::vk::CommandBuffer::Ptr cmd_buf);
-	void reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend);
+	void reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
+	void transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 
 private:
 	glm::vec3 m_AABB_min;
