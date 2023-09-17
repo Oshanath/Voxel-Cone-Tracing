@@ -35,7 +35,7 @@ set(SHADER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/shader/voxel.vert
     ${PROJECT_SOURCE_DIR}/src/shader/voxel.geom
     ${PROJECT_SOURCE_DIR}/src/shader/voxel.frag
-    ${PROJECT_SOURCE_DIR}/src/shader/voxel.comp)
+    ${PROJECT_SOURCE_DIR}/src/shader/reset.comp)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 

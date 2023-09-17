@@ -126,7 +126,7 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
 
     create_descriptor_sets(backend);
     create_pipeline_state(backend, vertex_input_state);
-    create_visualizer_pipeline_state(backend);
+    create_voxel_reset_pipeline_state(backend);
 }
 
 Voxelizer::~Voxelizer()
@@ -366,7 +366,7 @@ void Voxelizer::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk
     m_pipeline = dw::vk::GraphicsPipeline::create(backend, pso_desc);
 }
 
-void Voxelizer::create_visualizer_pipeline_state(dw::vk::Backend::Ptr backend)
+void Voxelizer::create_voxel_reset_pipeline_state(dw::vk::Backend::Ptr backend)
 {
     dw::vk::ShaderModule::Ptr cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel.comp.spv");
     dw::vk::ComputePipeline::Desc  pso_desc;
@@ -374,16 +374,16 @@ void Voxelizer::create_visualizer_pipeline_state(dw::vk::Backend::Ptr backend)
 
     dw::vk::PipelineLayout::Desc pl_desc;
     pl_desc.add_descriptor_set_layout(m_ds_layout_image);
-    m_compute_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
+    m_reset_compute_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
 
-    pso_desc.set_pipeline_layout(m_compute_pipeline_layout);
-    m_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
+    pso_desc.set_pipeline_layout(m_reset_compute_pipeline_layout);
+    m_reset_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
 }
 
 void Voxelizer::reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     // Compute
-    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_compute_pipeline->handle());
-    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_compute_pipeline_layout->handle(), 0, 1, &m_ds_image->handle(), 0, nullptr);
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_compute_pipeline->handle());
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_compute_pipeline_layout->handle(), 0, 1, &m_ds_image->handle(), 0, nullptr);
     vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);
 }

@@ -21,8 +21,8 @@ class Voxelizer
 public:
 	dw::vk::PipelineLayout::Ptr m_pipeline_layout;
 	dw::vk::GraphicsPipeline::Ptr m_pipeline;
-	dw::vk::PipelineLayout::Ptr m_compute_pipeline_layout;
-	dw::vk::ComputePipeline::Ptr m_compute_pipeline;
+	dw::vk::PipelineLayout::Ptr m_reset_compute_pipeline_layout;
+	dw::vk::ComputePipeline::Ptr m_reset_compute_pipeline;
 	dw::vk::Framebuffer::Ptr m_framebuffer;
 	dw::vk::RenderPass::Ptr m_render_pass;
 	dw::vk::Image::Ptr m_image;
@@ -65,5 +65,5 @@ private:
 	float get_length(glm::vec3 AABB_min, glm::vec3 AABB_max) const;
 	void create_descriptor_sets(dw::vk::Backend::Ptr backend);
 	void create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state);
-	void create_visualizer_pipeline_state(dw::vk::Backend::Ptr backend);
+	void create_voxel_reset_pipeline_state(dw::vk::Backend::Ptr backend);
 };
