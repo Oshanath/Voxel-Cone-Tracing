@@ -10,8 +10,9 @@ void main()
     uint x = gl_GlobalInvocationID.x;
     uint y = gl_GlobalInvocationID.y;
     uint z = gl_GlobalInvocationID.z;
-
-    const vec4 voxel_value = vec4(0.0, 0.0, 0.0, 0.0);
     ivec3 voxel_coordinate = ivec3(x, y, z);
+
+    const vec4 voxel_value = vec4(x/64.0, y/64.0, z/64.0, 0.0);
+   
     imageStore(voxelTexture, voxel_coordinate, voxel_value);
 }

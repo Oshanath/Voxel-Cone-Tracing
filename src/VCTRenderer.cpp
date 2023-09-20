@@ -436,11 +436,12 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     m_voxelizer->transition_voxel_grid(cmd_buf);
     m_voxelizer->reset_voxel_grid(cmd_buf);
+    m_voxelizer->image_memory_barrier_voxel_grid(cmd_buf);
 
     // Voxelization
-    /*m_voxelizer->begin_render(cmd_buf, m_vk_backend);
+    m_voxelizer->begin_render(cmd_buf, m_vk_backend);
     render_objects(cmd_buf, m_voxelizer->m_pipeline_layout);
-    m_voxelizer->end_render(cmd_buf);*/
+    m_voxelizer->end_render(cmd_buf);
 
     uint32_t dynamic_offset         = m_ubo_size_main * m_vk_backend->current_frame_idx();
     uint32_t lights_dynamic_offset = m_ubo_size_lights * m_vk_backend->current_frame_idx();

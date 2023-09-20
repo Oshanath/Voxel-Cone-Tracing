@@ -93,6 +93,26 @@ void Voxelizer::transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
+void Voxelizer::image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+    VkImageMemoryBarrier barrier            = {};
+    barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.image                           = m_image->handle();
+    barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.srcAccessMask                   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel   = 0;
+    barrier.subresourceRange.levelCount     = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount     = 1;
+
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
+}
+
 Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state) :
     m_AABB_min(AABB_min), m_AABB_max(AABB_max),
     m_center((AABB_min + AABB_max) / 2.0f),
@@ -368,7 +388,7 @@ void Voxelizer::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk
 
 void Voxelizer::create_voxel_reset_pipeline_state(dw::vk::Backend::Ptr backend)
 {
-    dw::vk::ShaderModule::Ptr cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel.comp.spv");
+    dw::vk::ShaderModule::Ptr cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/reset.comp.spv");
     dw::vk::ComputePipeline::Desc  pso_desc;
     pso_desc.set_shader_stage(cs, "main");
 

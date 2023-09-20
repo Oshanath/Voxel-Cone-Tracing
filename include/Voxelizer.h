@@ -50,6 +50,7 @@ public:
 	void end_render(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
+	void image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 
 private:
 	glm::vec3 m_AABB_min;
