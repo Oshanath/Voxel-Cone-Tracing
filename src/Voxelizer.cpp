@@ -4,6 +4,58 @@
 #include <algorithm>
 #include <material.h>
 
+Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state) :
+    m_AABB_min(AABB_min), m_AABB_max(AABB_max),
+    m_center((AABB_min + AABB_max) / 2.0f),
+    m_length(get_length(AABB_min, AABB_max)),
+    m_cam_pos(m_center + glm::vec3(m_length / 2, 0.0f, 0.0f)),
+    m_cam_forward(glm::vec3(-1.0f, 0.0f, 0.0f)),
+    m_view(glm::lookAt(m_cam_pos, m_center, glm::vec3(0.0f, 1.0f, 0.0f))),
+    m_proj(glm::ortho(-m_length / 2, m_length / 2, -m_length / 2, m_length / 2, 0.0f, m_length)),
+    m_voxels_per_side(voxels_per_side)
+{
+
+    VkFormat voxel_grid_format = VK_FORMAT_R8G8B8A8_UNORM;
+
+    m_image      = dw::vk::Image::create(backend, VK_IMAGE_TYPE_3D, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side, 1, 1, voxel_grid_format, VMA_MEMORY_USAGE_GPU_ONLY, VK_IMAGE_USAGE_STORAGE_BIT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED);
+    m_image_view = dw::vk::ImageView::create(backend, m_image, VK_IMAGE_VIEW_TYPE_3D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
+
+    std::vector<VkSubpassDescription> subpass_description(1);
+
+    subpass_description[0].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass_description[0].colorAttachmentCount    = 0;
+    subpass_description[0].pColorAttachments       = nullptr;
+    subpass_description[0].pDepthStencilAttachment = nullptr;
+    subpass_description[0].inputAttachmentCount    = 0;
+    subpass_description[0].pInputAttachments       = nullptr;
+    subpass_description[0].preserveAttachmentCount = 0;
+    subpass_description[0].pPreserveAttachments    = nullptr;
+    subpass_description[0].pResolveAttachments     = nullptr;
+
+    m_render_pass = dw::vk::RenderPass::create(backend, {}, subpass_description, {});
+    m_framebuffer = dw::vk::Framebuffer::create(backend, m_render_pass, {}, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side);
+
+    create_descriptor_sets(backend);
+    create_pipeline_state(backend, vertex_input_state);
+    create_voxel_reset_pipeline_state(backend);
+    create_visualizer_pipeline_state(backend);
+}
+
+Voxelizer::~Voxelizer()
+{
+    //m_framebuffer.reset();
+    m_render_pass.reset();
+    m_image_view.reset();
+    m_image.reset();
+    m_pipeline.reset();
+    m_ubo_data.reset();
+    m_ds_data.reset();
+    m_ds_image.reset();
+    m_ds_layout_image.reset();
+    m_ds_layout_ubo.reset();
+    m_pipeline_layout.reset();
+}
+
 float Voxelizer::get_length(glm::vec3 AABB_min, glm::vec3 AABB_max) const
 {
     float x_length = std::abs(AABB_min.x - AABB_max.x);
@@ -70,7 +122,6 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     write_data.dstSet          = m_ds_image->handle();
 
     vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
-    
 }
 
 void Voxelizer::transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
@@ -93,7 +144,7 @@ void Voxelizer::transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
-void Voxelizer::image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
+void Voxelizer::reset_voxelization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     VkImageMemoryBarrier barrier            = {};
     barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -113,55 +164,24 @@ void Voxelizer::image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_b
     vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
-Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state) :
-    m_AABB_min(AABB_min), m_AABB_max(AABB_max),
-    m_center((AABB_min + AABB_max) / 2.0f),
-    m_length(get_length(AABB_min, AABB_max)),
-    m_cam_pos(m_center + glm::vec3(m_length / 2, 0.0f, 0.0f)),
-    m_cam_forward(glm::vec3(-1.0f, 0.0f, 0.0f)),
-    m_view(glm::lookAt(m_cam_pos, m_center, glm::vec3(0.0f, 1.0f, 0.0f))),
-    m_proj(glm::ortho(-m_length / 2, m_length / 2, -m_length / 2, m_length / 2, 0.0f, m_length)),
-    m_voxels_per_side(voxels_per_side)
+void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
+    VkImageMemoryBarrier barrier            = {};
+    barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.image                           = m_image->handle();
+    barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.srcAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel   = 0;
+    barrier.subresourceRange.levelCount     = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount     = 1;
 
-    VkFormat voxel_grid_format = VK_FORMAT_R8G8B8A8_UNORM;
-
-    m_image      = dw::vk::Image::create(backend, VK_IMAGE_TYPE_3D, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side, 1, 1, voxel_grid_format, VMA_MEMORY_USAGE_GPU_ONLY, VK_IMAGE_USAGE_STORAGE_BIT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED);
-    m_image_view = dw::vk::ImageView::create(backend, m_image, VK_IMAGE_VIEW_TYPE_3D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
-
-    std::vector<VkSubpassDescription> subpass_description(1);
-
-    subpass_description[0].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass_description[0].colorAttachmentCount    = 0;
-    subpass_description[0].pColorAttachments       = nullptr;
-    subpass_description[0].pDepthStencilAttachment = nullptr;
-    subpass_description[0].inputAttachmentCount    = 0;
-    subpass_description[0].pInputAttachments       = nullptr;
-    subpass_description[0].preserveAttachmentCount = 0;
-    subpass_description[0].pPreserveAttachments    = nullptr;
-    subpass_description[0].pResolveAttachments     = nullptr;
-
-    m_render_pass = dw::vk::RenderPass::create(backend, {}, subpass_description, {});
-    m_framebuffer = dw::vk::Framebuffer::create(backend, m_render_pass, {}, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side);
-
-    create_descriptor_sets(backend);
-    create_pipeline_state(backend, vertex_input_state);
-    create_voxel_reset_pipeline_state(backend);
-}
-
-Voxelizer::~Voxelizer()
-{
-    //m_framebuffer.reset();
-    m_render_pass.reset();
-    m_image_view.reset();
-    m_image.reset();
-    m_pipeline.reset();
-    m_ubo_data.reset();
-    m_ds_data.reset();
-    m_ds_image.reset();
-    m_ds_layout_image.reset();
-    m_ds_layout_ubo.reset();
-    m_pipeline_layout.reset();
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
 glm::vec3 Voxelizer::get_center() const
@@ -398,6 +418,20 @@ void Voxelizer::create_voxel_reset_pipeline_state(dw::vk::Backend::Ptr backend)
 
     pso_desc.set_pipeline_layout(m_reset_compute_pipeline_layout);
     m_reset_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
+}
+
+void Voxelizer::create_visualizer_pipeline_state(dw::vk::Backend::Ptr backend)
+{
+    dw::vk::ShaderModule::Ptr     cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel_vis.comp.spv");
+    dw::vk::ComputePipeline::Desc pso_desc;
+    pso_desc.set_shader_stage(cs, "main");
+
+    dw::vk::PipelineLayout::Desc pl_desc;
+    pl_desc.add_descriptor_set_layout(m_ds_layout_image);
+    m_visualizer_compute_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
+
+    pso_desc.set_pipeline_layout(m_visualizer_compute_pipeline_layout);
+    m_visualizer_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
 }
 
 void Voxelizer::reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)

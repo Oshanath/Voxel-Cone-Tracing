@@ -22,7 +22,9 @@ public:
 	dw::vk::PipelineLayout::Ptr m_pipeline_layout;
 	dw::vk::GraphicsPipeline::Ptr m_pipeline;
 	dw::vk::PipelineLayout::Ptr m_reset_compute_pipeline_layout;
+	dw::vk::PipelineLayout::Ptr m_visualizer_compute_pipeline_layout;
 	dw::vk::ComputePipeline::Ptr m_reset_compute_pipeline;
+	dw::vk::ComputePipeline::Ptr m_visualizer_compute_pipeline;
 	dw::vk::Framebuffer::Ptr m_framebuffer;
 	dw::vk::RenderPass::Ptr m_render_pass;
 	dw::vk::Image::Ptr m_image;
@@ -50,7 +52,8 @@ public:
 	void end_render(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
-	void image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
+	void reset_voxelization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
+	void voxelization_visualization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 
 private:
 	glm::vec3 m_AABB_min;
@@ -67,4 +70,5 @@ private:
 	void create_descriptor_sets(dw::vk::Backend::Ptr backend);
 	void create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state);
 	void create_voxel_reset_pipeline_state(dw::vk::Backend::Ptr backend);
+	void create_visualizer_pipeline_state(dw::vk::Backend::Ptr backend);
 };
