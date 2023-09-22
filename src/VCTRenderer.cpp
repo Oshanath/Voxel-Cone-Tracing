@@ -28,7 +28,9 @@ bool Sample::init(int argc, const char* argv[])
         glm::vec3(-1250.63f, -102.853f, 718.932f), 
         glm::vec3(1196.01f, 907.495f, -805.504f),
         64,
-        m_meshes[0]->vertex_input_state_desc());
+        m_meshes[0]->vertex_input_state_desc(),
+        m_width,
+        m_height);
 
     create_descriptor_sets();
     write_descriptor_sets();
@@ -332,7 +334,8 @@ bool Sample::load_objects()
 {
     std::vector<bool> results;
     results.push_back(load_object("sponza.obj"));
-    results.push_back(load_object("teapot.obj"));
+    results.push_back(load_object("cube.obj"));
+    //results.push_back(load_object("teapot.obj"));
     objects[objects.size() - 1].position = glm::vec3(20.0f, 20.0f, 20.0f);
 
     for (bool result : results) {

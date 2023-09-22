@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <material.h>
 
-Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state) :
+Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height) :
     m_AABB_min(AABB_min), m_AABB_max(AABB_max),
     m_center((AABB_min + AABB_max) / 2.0f),
     m_length(get_length(AABB_min, AABB_max)),
@@ -37,8 +37,8 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
 
     create_descriptor_sets(backend);
     create_pipeline_state(backend, vertex_input_state);
-    create_voxel_reset_pipeline_state(backend);
-    create_visualizer_pipeline_state(backend);
+    create_voxel_reset_compute_pipeline_state(backend);
+    create_visualizer_compute_pipeline_state(backend);
 }
 
 Voxelizer::~Voxelizer()
@@ -180,8 +180,28 @@ void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::v
     barrier.subresourceRange.levelCount     = 1;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount     = 1;
-
+    
     vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
+}
+
+void Voxelizer::visualization_main_buffer_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+    /*VkImageMemoryBarrier barrier            = {};
+    barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.image                           = m_image->handle();
+    barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.srcAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT;
+    barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel   = 0;
+    barrier.subresourceRange.levelCount     = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount     = 1;
+
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);*/
 }
 
 glm::vec3 Voxelizer::get_center() const
@@ -406,7 +426,7 @@ void Voxelizer::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk
     m_pipeline = dw::vk::GraphicsPipeline::create(backend, pso_desc);
 }
 
-void Voxelizer::create_voxel_reset_pipeline_state(dw::vk::Backend::Ptr backend)
+void Voxelizer::create_voxel_reset_compute_pipeline_state(dw::vk::Backend::Ptr backend)
 {
     dw::vk::ShaderModule::Ptr cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/reset.comp.spv");
     dw::vk::ComputePipeline::Desc  pso_desc;
@@ -420,7 +440,7 @@ void Voxelizer::create_voxel_reset_pipeline_state(dw::vk::Backend::Ptr backend)
     m_reset_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
 }
 
-void Voxelizer::create_visualizer_pipeline_state(dw::vk::Backend::Ptr backend)
+void Voxelizer::create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr backend)
 {
     dw::vk::ShaderModule::Ptr     cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel_vis.comp.spv");
     dw::vk::ComputePipeline::Desc pso_desc;
@@ -432,6 +452,135 @@ void Voxelizer::create_visualizer_pipeline_state(dw::vk::Backend::Ptr backend)
 
     pso_desc.set_pipeline_layout(m_visualizer_compute_pipeline_layout);
     m_visualizer_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
+}
+
+void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height)
+{
+    // ---------------------------------------------------------------------------
+    // Create shader modules
+    // ---------------------------------------------------------------------------
+
+    dw::vk::ShaderModule::Ptr vs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel_vis.vert.spv");
+    dw::vk::ShaderModule::Ptr fs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel_vis.frag.spv");
+
+    dw::vk::GraphicsPipeline::Desc pso_desc;
+
+    pso_desc.add_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, vs, "main")
+        .add_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main");
+
+    // ---------------------------------------------------------------------------
+    // Create vertex input state
+    // ---------------------------------------------------------------------------
+
+    pso_desc.set_vertex_input_state(vertex_input_state);
+
+    // ---------------------------------------------------------------------------
+    // Create pipeline input assembly state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::InputAssemblyStateDesc input_assembly_state_desc;
+
+    input_assembly_state_desc.set_primitive_restart_enable(false)
+        .set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+    pso_desc.set_input_assembly_state(input_assembly_state_desc);
+
+    // ---------------------------------------------------------------------------
+    // Create viewport state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::ViewportStateDesc vp_desc;
+
+    vp_desc.add_viewport(0.0f, 0.0f, m_viewport_width, m_viewport_height, 0.0f, 1.0f)
+        .add_scissor(0, 0, m_viewport_width, m_viewport_height);
+
+    pso_desc.set_viewport_state(vp_desc);
+
+    // ---------------------------------------------------------------------------
+    // Create rasterization state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::RasterizationStateDesc rs_state;
+
+    rs_state.set_depth_clamp(VK_FALSE)
+        .set_rasterizer_discard_enable(VK_FALSE)
+        .set_polygon_mode(VK_POLYGON_MODE_FILL)
+        .set_line_width(1.0f)
+        .set_cull_mode(VK_CULL_MODE_NONE)
+        .set_front_face(VK_FRONT_FACE_COUNTER_CLOCKWISE)
+        .set_depth_bias(VK_FALSE);
+
+    pso_desc.set_rasterization_state(rs_state);
+
+    // ---------------------------------------------------------------------------
+    // Create multisample state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::MultisampleStateDesc ms_state;
+
+    ms_state.set_sample_shading_enable(VK_FALSE)
+        .set_rasterization_samples(VK_SAMPLE_COUNT_1_BIT);
+
+    pso_desc.set_multisample_state(ms_state);
+
+    // ---------------------------------------------------------------------------
+    // Create depth stencil state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::DepthStencilStateDesc ds_state;
+
+    ds_state.set_depth_test_enable(VK_TRUE)
+        .set_depth_write_enable(VK_FALSE)
+        .set_depth_compare_op(VK_COMPARE_OP_LESS)
+        .set_depth_bounds_test_enable(VK_FALSE)
+        .set_stencil_test_enable(VK_FALSE);
+
+    pso_desc.set_depth_stencil_state(ds_state);
+
+    // ---------------------------------------------------------------------------
+    // Create color blend state
+    // ---------------------------------------------------------------------------
+
+    dw::vk::ColorBlendAttachmentStateDesc blend_att_desc;
+
+    blend_att_desc.set_color_write_mask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+        .set_blend_enable(VK_FALSE);
+
+    dw::vk::ColorBlendStateDesc blend_state;
+
+    blend_state.set_logic_op_enable(VK_FALSE)
+        .set_logic_op(VK_LOGIC_OP_COPY)
+        .set_blend_constants(0.0f, 0.0f, 0.0f, 0.0f)
+        .add_attachment(blend_att_desc);
+
+    pso_desc.set_color_blend_state(blend_state);
+
+    // ---------------------------------------------------------------------------
+    // Create pipeline layout
+    // ---------------------------------------------------------------------------
+
+    dw::vk::PipelineLayout::Desc pl_desc;
+
+    pl_desc.add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
+
+    m_visualizer_graphics_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
+
+    //pso_desc.set_pipeline_layout(m_pipeline_layout);
+
+    // ---------------------------------------------------------------------------
+    // Create dynamic state
+    // ---------------------------------------------------------------------------
+
+    pso_desc.add_dynamic_state(VK_DYNAMIC_STATE_VIEWPORT)
+        .add_dynamic_state(VK_DYNAMIC_STATE_SCISSOR);
+
+    // ---------------------------------------------------------------------------
+    // Create pipeline
+    // ---------------------------------------------------------------------------
+
+    //pso_desc.set_render_pass(m_render_pass);
+
+    m_visualizer_graphics_pipeline = dw::vk::GraphicsPipeline::create(backend, pso_desc);
 }
 
 void Voxelizer::reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
