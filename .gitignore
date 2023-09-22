@@ -1,5 +1,11 @@
 .vs/
-bin/
+bin/shader
+bin/shaders
+bin/imgui.ini
+bin/log.txt
+bin/VCTRenderer.exe
+bin/VCTRenderer.ilk
+bin/VCTRenderer.pdb
 lib/
 out/
 /renderdoc.cap

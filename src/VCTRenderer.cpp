@@ -333,9 +333,9 @@ bool Sample::load_object(std::string filename)
 bool Sample::load_objects()
 {
     std::vector<bool> results;
+    results.push_back(load_object("teapot.obj"));
     results.push_back(load_object("sponza.obj"));
     results.push_back(load_object("cube.obj"));
-    //results.push_back(load_object("teapot.obj"));
     objects[objects.size() - 1].position = glm::vec3(20.0f, 20.0f, 20.0f);
 
     for (bool result : results) {
