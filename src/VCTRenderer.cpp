@@ -333,8 +333,8 @@ bool Sample::load_object(std::string filename)
 bool Sample::load_objects()
 {
     std::vector<bool> results;
-    results.push_back(load_object("teapot.obj"));
-    results.push_back(load_object("sponza.obj"));
+    //results.push_back(load_object("teapot.obj"));
+    //results.push_back(load_object("sponza.obj"));
     results.push_back(load_object("cube.obj"));
     objects[objects.size() - 1].position = glm::vec3(20.0f, 20.0f, 20.0f);
 
@@ -453,14 +453,22 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 0, 1, &m_voxelizer->m_ds_image->handle(), 0, nullptr);
     vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);
 
-    uint32_t dynamic_offset         = m_ubo_size_main * m_vk_backend->current_frame_idx();
-    uint32_t lights_dynamic_offset = m_ubo_size_lights * m_vk_backend->current_frame_idx();
-    update_uniforms(cmd_buf, PIPELINE_MAIN);
-    begin_render_main(cmd_buf);
-    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 1, 1, &m_ds_transforms_main->handle(), 1, &dynamic_offset);
-    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 2, 1, &m_shadow_map->m_ds_shadow_sampler->handle(), 0, nullptr);
-    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 3, 1, &m_ds_lights->handle(), 1, &lights_dynamic_offset);
-    render_objects(cmd_buf, m_pipeline_layout_main);
+    if (true)
+    {
+        m_voxelizer->begin_render_visualizer(cmd_buf, m_vk_backend);
+        m_voxelizer->render_voxels(cmd_buf, objects[0]);
+    }
+    else
+    {
+        uint32_t dynamic_offset        = m_ubo_size_main * m_vk_backend->current_frame_idx();
+        uint32_t lights_dynamic_offset = m_ubo_size_lights * m_vk_backend->current_frame_idx();
+        update_uniforms(cmd_buf, PIPELINE_MAIN);
+        begin_render_main(cmd_buf);
+        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 1, 1, &m_ds_transforms_main->handle(), 1, &dynamic_offset);
+        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 2, 1, &m_shadow_map->m_ds_shadow_sampler->handle(), 0, nullptr);
+        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 3, 1, &m_ds_lights->handle(), 1, &lights_dynamic_offset);
+        render_objects(cmd_buf, m_pipeline_layout_main);
+    }
 
     //AABB aabb = m_voxelizer->get_AABB();
     //m_debug_draw.aabb(aabb.min, aabb.max, glm::vec3(1.0f, 1.0f, 1.0f));

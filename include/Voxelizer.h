@@ -3,6 +3,7 @@
 #include <glm.hpp>
 #include <vk.h>
 #include "util.h"
+#include "RendererObject.h"
 
 struct VoxelizerData
 {
@@ -22,6 +23,13 @@ struct VisualizerUBO
 		glm::mat4 view;
 	DW_ALIGNED(16)
 		glm::mat4 projection;
+};
+
+// Per instance data
+struct InstanceData
+{
+	DW_ALIGNED(16)
+		glm::vec3 position;
 };
 
 class Voxelizer
@@ -61,6 +69,8 @@ public:
 	void Voxelizer::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend);
 	void end_render(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
+	void begin_render_visualizer(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend);
+	void render_voxels(dw::vk::CommandBuffer::Ptr cmd_buf, RenderObject& object);
 	void transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void reset_voxelization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void voxelization_visualization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
@@ -76,6 +86,8 @@ private:
 	glm::mat4 m_view;
 	glm::mat4 m_proj;
 	uint32_t m_voxels_per_side;
+	uint32_t m_viewport_width;
+	uint32_t m_viewport_height;
 
 	float get_length(glm::vec3 AABB_min, glm::vec3 AABB_max) const;
 	void create_descriptor_sets(dw::vk::Backend::Ptr backend);

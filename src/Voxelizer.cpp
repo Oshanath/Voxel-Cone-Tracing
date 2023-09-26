@@ -12,7 +12,9 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     m_cam_forward(glm::vec3(-1.0f, 0.0f, 0.0f)),
     m_view(glm::lookAt(m_cam_pos, m_center, glm::vec3(0.0f, 1.0f, 0.0f))),
     m_proj(glm::ortho(-m_length / 2, m_length / 2, -m_length / 2, m_length / 2, 0.0f, m_length)),
-    m_voxels_per_side(voxels_per_side)
+    m_voxels_per_side(voxels_per_side),
+    m_viewport_width(m_viewport_width),
+    m_viewport_height(m_viewport_height)
 {
 
     VkFormat voxel_grid_format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -39,6 +41,7 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     create_pipeline_state(backend, vertex_input_state);
     create_voxel_reset_compute_pipeline_state(backend);
     create_visualizer_compute_pipeline_state(backend);
+    create_visualizer_graphics_pipeline_state(backend, vertex_input_state, m_viewport_width, m_viewport_height);
 }
 
 Voxelizer::~Voxelizer()
@@ -565,7 +568,7 @@ void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr b
 
     m_visualizer_graphics_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
 
-    //pso_desc.set_pipeline_layout(m_pipeline_layout);
+    pso_desc.set_pipeline_layout(m_visualizer_graphics_pipeline_layout);
 
     // ---------------------------------------------------------------------------
     // Create dynamic state
@@ -578,7 +581,7 @@ void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr b
     // Create pipeline
     // ---------------------------------------------------------------------------
 
-    //pso_desc.set_render_pass(m_render_pass);
+    pso_desc.set_render_pass(backend->swapchain_render_pass());
 
     m_visualizer_graphics_pipeline = dw::vk::GraphicsPipeline::create(backend, pso_desc);
 }
@@ -589,4 +592,75 @@ void Voxelizer::reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_compute_pipeline->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_compute_pipeline_layout->handle(), 0, 1, &m_ds_image->handle(), 0, nullptr);
     vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);
+}
+
+void Voxelizer::begin_render_visualizer(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
+{
+    VkClearValue clear_values[2];
+
+    clear_values[0].color.float32[0] = 0.0f;
+    clear_values[0].color.float32[1] = 0.0f;
+    clear_values[0].color.float32[2] = 0.0f;
+    clear_values[0].color.float32[3] = 1.0f;
+
+    clear_values[1].color.float32[0] = 1.0f;
+    clear_values[1].color.float32[1] = 1.0f;
+    clear_values[1].color.float32[2] = 1.0f;
+    clear_values[1].color.float32[3] = 1.0f;
+
+    VkRenderPassBeginInfo info    = {};
+    info.sType                    = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    info.renderPass               = backend->swapchain_render_pass()->handle();
+    info.framebuffer              = backend->swapchain_framebuffer()->handle();
+    info.renderArea.extent.width  = m_viewport_width;
+    info.renderArea.extent.height = m_viewport_height;
+    info.clearValueCount          = 2;
+    info.pClearValues             = &clear_values[0];
+
+    vkCmdBeginRenderPass(cmd_buf->handle(), &info, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_visualizer_graphics_pipeline->handle());
+
+    VkViewport vp;
+
+    vp.x        = 0.0f;
+    vp.y        = (float)m_viewport_height;
+    vp.width    = (float)m_viewport_width;
+    vp.height   = -(float)m_viewport_height;
+    vp.minDepth = 0.0f;
+    vp.maxDepth = 1.0f;
+
+    vkCmdSetViewport(cmd_buf->handle(), 0, 1, &vp);
+
+    VkRect2D scissor_rect;
+
+    scissor_rect.extent.width  = m_viewport_width;
+    scissor_rect.extent.height = m_viewport_height;
+    scissor_rect.offset.x      = 0;
+    scissor_rect.offset.y      = 0;
+
+    vkCmdSetScissor(cmd_buf->handle(), 0, 1, &scissor_rect);
+}
+
+void Voxelizer::render_voxels(dw::vk::CommandBuffer::Ptr cmd_buf, RenderObject& object)
+{
+    VkDeviceSize offset = 0;
+
+    auto mesh = object.mesh;
+
+    vkCmdBindVertexBuffers(cmd_buf->handle(), 0, 1, &mesh->vertex_buffer()->handle(), &offset);
+    vkCmdBindIndexBuffer(cmd_buf->handle(), mesh->index_buffer()->handle(), 0, VK_INDEX_TYPE_UINT32);
+
+    const auto& submeshes = mesh->sub_meshes();
+
+    for (uint32_t i = 0; i < submeshes.size(); i++)
+    {
+        auto& submesh = submeshes[i];
+        auto& mat     = mesh->material(submesh.mat_idx);
+
+        vkCmdPushConstants(cmd_buf->handle(), m_visualizer_graphics_pipeline_layout->handle(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), glm::value_ptr(object.get_model()));
+
+        // Issue draw call.
+        vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, 1, submesh.base_index, submesh.base_vertex, 0);
+    }
 }

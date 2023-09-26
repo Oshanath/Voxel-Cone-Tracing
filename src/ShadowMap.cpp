@@ -77,7 +77,6 @@ ShadowMap::ShadowMap(dw::vk::Backend::Ptr backend, uint32_t m_size, const dw::vk
     sampler_desc.compare_enable = VK_FALSE;
     sampler_desc.compare_op     = VK_COMPARE_OP_NEVER;
     m_shadow_map_sampler        = dw::vk::Sampler::create(backend, sampler_desc);
-    m_shadow_map_sampler->set_name("shadow_map_sampler");
 
     create_descriptor_sets(backend);
     create_pipeline_state(backend, vertex_input_state);
