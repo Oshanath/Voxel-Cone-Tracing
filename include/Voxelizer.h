@@ -29,32 +29,38 @@ struct VisualizerUBO
 struct InstanceData
 {
 	DW_ALIGNED(16)
-		glm::vec3 position;
+		glm::vec4 position;
 };
 
 class Voxelizer
 {
 public:
-	dw::vk::PipelineLayout::Ptr m_pipeline_layout;
+	dw::vk::PipelineLayout::Ptr   m_pipeline_layout;
 	dw::vk::GraphicsPipeline::Ptr m_pipeline;
-	dw::vk::PipelineLayout::Ptr m_reset_compute_pipeline_layout;
-	dw::vk::PipelineLayout::Ptr m_visualizer_compute_pipeline_layout;
-	dw::vk::PipelineLayout::Ptr m_visualizer_graphics_pipeline_layout;
-	dw::vk::ComputePipeline::Ptr m_reset_compute_pipeline;
-	dw::vk::ComputePipeline::Ptr m_visualizer_compute_pipeline;
+	dw::vk::PipelineLayout::Ptr   m_reset_compute_pipeline_layout;
+	dw::vk::PipelineLayout::Ptr   m_visualizer_compute_pipeline_layout;
+	dw::vk::PipelineLayout::Ptr   m_visualizer_graphics_pipeline_layout;
+	dw::vk::ComputePipeline::Ptr  m_reset_compute_pipeline;
+	dw::vk::ComputePipeline::Ptr  m_visualizer_compute_pipeline;
 	dw::vk::GraphicsPipeline::Ptr m_visualizer_graphics_pipeline;
-	dw::vk::Framebuffer::Ptr m_framebuffer;
-	dw::vk::RenderPass::Ptr m_render_pass;
-	dw::vk::Image::Ptr m_image;
-	dw::vk::ImageView::Ptr m_image_view;
+	dw::vk::Framebuffer::Ptr      m_framebuffer;
+	dw::vk::RenderPass::Ptr       m_render_pass;
+	dw::vk::Image::Ptr			  m_image;
+	dw::vk::ImageView::Ptr		  m_image_view;
 
 	size_t							 m_ubo_size;
+	size_t							 m_instance_buffer_size;
 	dw::vk::Buffer::Ptr				 m_ubo_data;
+	dw::vk::Buffer::Ptr				 m_instance_buffer;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_image;
+	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_instance_buffer;
 	dw::vk::DescriptorSet::Ptr       m_ds_data;
 	dw::vk::DescriptorSet::Ptr       m_ds_image;
+	dw::vk::DescriptorSet::Ptr       m_ds_instance_buffer;
 	VoxelizerData					 m_data;
+
+	std::vector<InstanceData> m_cube_positions;
 
 	Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height);
 	~Voxelizer();

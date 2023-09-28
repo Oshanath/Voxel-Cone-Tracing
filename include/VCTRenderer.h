@@ -70,7 +70,7 @@ private:
     void render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout);
     void begin_render_main(dw::vk::CommandBuffer::Ptr cmd_buf);
     void render(dw::vk::CommandBuffer::Ptr cmd_buf);
-    void update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf, PipelineType type);
+    void update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf);
     void update_camera();
 
     VkSampleCountFlagBits getMaxUsableSampleCount();

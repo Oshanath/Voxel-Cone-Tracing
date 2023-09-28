@@ -8,14 +8,6 @@ struct MeshPushConstants
         glm::mat4 model;
 };
 
-// Pipeline selector
-enum PipelineType
-{
-	PIPELINE_MAIN,
-    PIPELINE_SHADOW,
-    PIPELINE_VOXELIZER
-};
-
 struct AABB
 {
     glm::vec3 min;
