@@ -46,6 +46,16 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     create_voxel_reset_compute_pipeline_state(backend);
     create_visualizer_compute_pipeline_state(backend);
     create_visualizer_graphics_pipeline_state(backend, vertex_input_state, m_viewport_width, m_viewport_height);
+
+    VkDrawIndexedIndirectCommand indirect_command;
+    indirect_command.instanceCount = m_cube_positions.size();
+    indirect_command.firstInstance = 0;
+    indirect_command.indexCount    = 36;
+    indirect_command.firstIndex    = 0;
+    indirect_command.vertexOffset  = 0;
+
+    uint8_t* ptr = (uint8_t*)m_indirect_buffer->mapped_ptr();
+    memcpy(ptr, &indirect_command, sizeof(VkDrawIndexedIndirectCommand));
 }
 
 Voxelizer::~Voxelizer()
@@ -89,12 +99,20 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT);
     m_ds_layout_instance_buffer = dw::vk::DescriptorSetLayout::create(backend, desc);
 
+    DW_ZERO_MEMORY(desc);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
+    m_ds_layout_indirect_buffer = dw::vk::DescriptorSetLayout::create(backend, desc);
+
     m_ds_data  = backend->allocate_descriptor_set(m_ds_layout_ubo);
     m_ds_image = backend->allocate_descriptor_set(m_ds_layout_image);
     m_ds_instance_buffer = backend->allocate_descriptor_set(m_ds_layout_instance_buffer);
+    m_ds_indirect_buffer = backend->allocate_descriptor_set(m_ds_layout_indirect_buffer);
 
     m_instance_buffer_size = backend->aligned_dynamic_ubo_size(sizeof(InstanceData)) * m_cube_positions.size();
     m_instance_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_instance_buffer_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    m_indirect_buffer_size = backend->aligned_dynamic_ubo_size(sizeof(VkDrawIndirectCommand));
+    m_indirect_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, m_indirect_buffer_size, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     // -------------------------------------------------------------------
 
@@ -133,6 +151,23 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     write_data.pBufferInfo     = &buffer_info;
     write_data.dstBinding      = 0;
     write_data.dstSet          = m_ds_instance_buffer->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+
+    // SSBO indirect buffer
+    DW_ZERO_MEMORY(buffer_info);
+    DW_ZERO_MEMORY(write_data);
+
+    buffer_info.buffer = m_indirect_buffer->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = m_indirect_buffer_size;
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_data.pBufferInfo     = &buffer_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_indirect_buffer->handle();
 
     vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
 
@@ -690,6 +725,7 @@ void Voxelizer::render_voxels(dw::vk::CommandBuffer::Ptr cmd_buf, RenderObject& 
 
         // Issue draw call.
         //vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, m_cube_positions.size(), submesh.base_index, submesh.base_vertex, 0);
-        vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, m_cube_positions.size(), submesh.base_index, submesh.base_vertex, 0);
+        //vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, m_cube_positions.size(), submesh.base_index, submesh.base_vertex, 0);
+        vkCmdDrawIndexedIndirect(cmd_buf->handle(), m_indirect_buffer->handle(), 0, 1, 0);
     }
 }

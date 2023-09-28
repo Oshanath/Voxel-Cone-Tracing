@@ -49,15 +49,19 @@ public:
 	dw::vk::ImageView::Ptr		  m_image_view;
 
 	size_t							 m_ubo_size;
-	size_t							 m_instance_buffer_size;
 	dw::vk::Buffer::Ptr				 m_ubo_data;
+	size_t							 m_instance_buffer_size;
 	dw::vk::Buffer::Ptr				 m_instance_buffer;
+	size_t							 m_indirect_buffer_size;
+	dw::vk::Buffer::Ptr				 m_indirect_buffer;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_image;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_instance_buffer;
+	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_indirect_buffer;
 	dw::vk::DescriptorSet::Ptr       m_ds_data;
 	dw::vk::DescriptorSet::Ptr       m_ds_image;
 	dw::vk::DescriptorSet::Ptr       m_ds_instance_buffer;
+	dw::vk::DescriptorSet::Ptr       m_ds_indirect_buffer;
 	VoxelizerData					 m_data;
 
 	std::vector<InstanceData> m_cube_positions;
