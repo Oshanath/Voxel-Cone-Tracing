@@ -452,6 +452,7 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 0, 1, &m_voxelizer->m_ds_image->handle(), 0, nullptr);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 0, nullptr);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 2, 1, &m_voxelizer->m_ds_indirect_buffer->handle(), 0, nullptr);
     vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);
 
     uint32_t lights_dynamic_offset = m_ubo_size_lights * m_vk_backend->current_frame_idx();

@@ -8,6 +8,18 @@ layout(std140, set=1, binding = 0) buffer InstanceBuffer {
    vec4 positions[];
 };
 
+struct VkDrawIndexedIndirectCommand {
+    uint    indexCount;
+    uint    instanceCount;
+    uint    firstIndex;
+    int     vertexOffset;
+    uint    firstInstance;
+};
+
+layout(std140, set=2, binding = 0) buffer IndirectBuffer {
+   VkDrawIndexedIndirectCommand command;
+};
+
 void main()
 {
 
@@ -32,4 +44,6 @@ void main()
     positions[0] = vec4(100.0, 0.0, 0.0, 0.0);
     positions[1] = vec4(50.0, 50.0, 0.0, 0.0);
     positions[2] = vec4(0.0, 0.0, 0.0, 0.0);
+
+    command.instanceCount = 3;
 }

@@ -44,7 +44,7 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     create_visualizer_graphics_pipeline_state(backend, vertex_input_state, m_viewport_width, m_viewport_height);
 
     VkDrawIndexedIndirectCommand indirect_command;
-    indirect_command.instanceCount = 3;
+    indirect_command.instanceCount = 1;
     indirect_command.firstInstance = 0;
     indirect_command.indexCount    = 36;
     indirect_command.firstIndex    = 0;
@@ -511,7 +511,8 @@ void Voxelizer::create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr ba
 
     dw::vk::PipelineLayout::Desc pl_desc;
     pl_desc.add_descriptor_set_layout(m_ds_layout_image)
-        .add_descriptor_set_layout(m_ds_layout_instance_buffer);
+        .add_descriptor_set_layout(m_ds_layout_instance_buffer)
+        .add_descriptor_set_layout(m_ds_layout_indirect_buffer);
     m_visualizer_compute_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
 
     pso_desc.set_pipeline_layout(m_visualizer_compute_pipeline_layout);
