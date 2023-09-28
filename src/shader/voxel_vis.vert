@@ -10,15 +10,14 @@ layout (set = 0, binding = 0) uniform PerFrameUBO
 	mat4 projection;
 } ubo;
 
-layout (set = 1, binding = 0) uniform InstanceBuffer
-{
-	vec4 position[2];
-} instanceBuffer;
+layout(std140, set=1, binding = 0) readonly buffer InstanceBuffer {
+   vec4 positions[];
+};
 
 void main() 
 {
     // Transform position into world space
-	vec4 world_pos =  vec4(VS_IN_Position.xyz, 1.0) + vec4(instanceBuffer.position[gl_InstanceIndex]);
+	vec4 world_pos =  vec4(VS_IN_Position.xyz, 1.0) + vec4(positions[gl_InstanceIndex]);
 
     // Transform world position into clip space
 	gl_Position = ubo.projection * ubo.view * world_pos;

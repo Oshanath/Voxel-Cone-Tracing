@@ -64,8 +64,6 @@ public:
 	dw::vk::DescriptorSet::Ptr       m_ds_indirect_buffer;
 	VoxelizerData					 m_data;
 
-	std::vector<InstanceData> m_cube_positions;
-
 	Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height);
 	~Voxelizer();
 

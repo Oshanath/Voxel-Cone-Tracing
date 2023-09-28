@@ -451,6 +451,7 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     // Visualization
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 0, 1, &m_voxelizer->m_ds_image->handle(), 0, nullptr);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 0, nullptr);
     vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);
 
     uint32_t lights_dynamic_offset = m_ubo_size_lights * m_vk_backend->current_frame_idx();
@@ -458,11 +459,10 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     if (true)
     {
-        uint32_t dynamic_offset_instance_buffer = m_voxelizer->m_instance_buffer_size * m_vk_backend->current_frame_idx();
         uint32_t dynamic_offset_main      = m_ubo_size_main * m_vk_backend->current_frame_idx();
         m_voxelizer->begin_render_visualizer(cmd_buf, m_vk_backend);
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 0, 1, &m_ds_transforms_main->handle(), 1, &dynamic_offset_main);
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 1, &dynamic_offset_instance_buffer);
+        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 0, nullptr);
         m_voxelizer->render_voxels(cmd_buf, objects[0]);
     }
     else
@@ -497,9 +497,6 @@ void Sample::update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     ptr = (uint8_t*)m_ubo_lights->mapped_ptr();
     memcpy(ptr + m_ubo_size_lights * m_vk_backend->current_frame_idx(), &m_lights, sizeof(Lights));
-
-    ptr = (uint8_t*)m_voxelizer->m_instance_buffer->mapped_ptr();
-    memcpy(ptr + m_voxelizer->m_instance_buffer_size * m_vk_backend->current_frame_idx(), m_voxelizer->m_cube_positions.data(), m_voxelizer->m_instance_buffer_size);
 }
 
 void Sample::update_camera()
