@@ -20,6 +20,14 @@ layout(std140, set=2, binding = 0) buffer IndirectBuffer {
    VkDrawIndexedIndirectCommand command;
 };
 
+layout (set = 3, binding = 0) uniform PerFrameUBO 
+{	
+	mat4 view;
+	mat4 projection;
+	vec4 aabb_min;
+	vec3 aabb_max;
+} ubo;
+
 void main()
 {
 
@@ -30,20 +38,21 @@ void main()
 
     vec4 voxel_value = imageLoad(voxelTexture, voxel_coordinate);
 
-    if(voxel_value.x < 0.5)
+    if(voxel_value.x > 0.5)
 	{
-		voxel_value = vec4(1.0, 1.0, 1.0, 1.0);
-	}
-	else
-	{
-		voxel_value = vec4(0.0, 0.0, 0.0, 0.0);
-	}
-   
-    imageStore(voxelTexture, voxel_coordinate, voxel_value);
+		uint index = atomicAdd(command.instanceCount, 1);
 
-    positions[0] = vec4(100.0, 0.0, 0.0, 0.0);
-    positions[1] = vec4(50.0, 50.0, 0.0, 0.0);
-    positions[2] = vec4(0.0, 0.0, 0.0, 0.0);
+        vec3 _min = ubo.aabb_min.xyz;
+	    vec3 _max = ubo.aabb_max.xyz;
+	    int voxels_per_side = int(ubo.aabb_min.w);
+	    mat4 grid_space_transformation = ubo.projection * ubo.view;
+        mat4 inverse_grid_space_transformation = inverse(grid_space_transformation);
+        vec4 min_grid_space = grid_space_transformation * vec4(_min, 1.0);
+	    vec4 max_grid_space = grid_space_transformation * vec4(_max, 1.0);
 
-    command.instanceCount = 3;
+        float voxel_width = (min_grid_space.x - max_grid_space.x) / voxels_per_side;
+        vec3 grid_space_position = min_grid_space.xyz + vec3(voxel_width / 2) + vec3(voxel_coordinate) * voxel_width;
+        vec4 world_space_position = inverse_grid_space_transformation * vec4(grid_space_position, 1.0);
+        positions[index] = world_space_position;
+	}
 }

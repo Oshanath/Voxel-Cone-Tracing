@@ -143,12 +143,16 @@ void Sample::create_descriptor_set_layouts()
     dw::vk::DescriptorSetLayout::Desc desc;
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
     m_ds_layout_ubo = dw::vk::DescriptorSetLayout::create(m_vk_backend, desc);
+    m_ds_layout_ubo->set_name("Main::ds_layout_ubo");
 }
 
 inline void Sample::create_descriptor_sets()
 {
     m_ds_transforms_main   = m_vk_backend->allocate_descriptor_set(m_ds_layout_ubo);
+    m_ds_transforms_main->set_name("Main::ds_transforms_main");
+
     m_ds_lights            = m_vk_backend->allocate_descriptor_set(m_ds_layout_ubo);
+    m_ds_lights->set_name("Main::ds_lights");
 }
 
 void Sample::write_descriptor_sets()
@@ -304,6 +308,7 @@ void Sample::create_main_pipeline_state()
     pl_desc.add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
 
     m_pipeline_layout_main = dw::vk::PipelineLayout::create(m_vk_backend, pl_desc);
+    m_pipeline_layout_main->set_name("Main::pipeline_layout_main");
 
     pso_desc.set_pipeline_layout(m_pipeline_layout_main);
 
@@ -321,6 +326,7 @@ void Sample::create_main_pipeline_state()
     pso_desc.set_render_pass(m_vk_backend->swapchain_render_pass());
 
     m_graphics_pipeline_main = dw::vk::GraphicsPipeline::create(m_vk_backend, pso_desc);
+    m_graphics_pipeline_main->set_name("Main::graphics_pipeline_main");
 }
 
 bool Sample::load_object(std::string filename)
@@ -333,9 +339,10 @@ bool Sample::load_object(std::string filename)
 bool Sample::load_objects()
 {
     std::vector<bool> results;
-    //results.push_back(load_object("teapot.obj"));
-    //results.push_back(load_object("sponza.obj"));
     results.push_back(load_object("cube.obj"));
+    // results.push_back(load_object("teapot.obj"));
+     results.push_back(load_object("sponza.obj"));
+
     objects[objects.size() - 1].position = glm::vec3(20.0f, 20.0f, 20.0f);
 
     for (bool result : results) {
@@ -445,24 +452,30 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     m_voxelizer->begin_render(cmd_buf, m_vk_backend);
     render_objects(cmd_buf, m_voxelizer->m_pipeline_layout);
     m_voxelizer->end_render(cmd_buf);
-
     m_voxelizer->voxelization_visualization_image_memory_barrier_voxel_grid(cmd_buf);
 
+    m_voxelizer->reset_instance_buffer(cmd_buf);
+    m_voxelizer->reset_voxelization_buffer_memory_barrier_indirect(cmd_buf);
+
     // Visualization
+    uint32_t dynamic_offset = m_voxelizer->m_ubo_size * m_vk_backend->current_frame_idx();
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 0, 1, &m_voxelizer->m_ds_image->handle(), 0, nullptr);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 0, nullptr);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 2, 1, &m_voxelizer->m_ds_indirect_buffer->handle(), 0, nullptr);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 3, 1, &m_voxelizer->m_ds_data->handle(), 1, &dynamic_offset);
     vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);
+
+    m_voxelizer->visualization_main_buffer_memory_barrier(cmd_buf);
 
     uint32_t lights_dynamic_offset = m_ubo_size_lights * m_vk_backend->current_frame_idx();
     update_uniforms(cmd_buf);
 
     if (true)
     {
-        uint32_t dynamic_offset_main      = m_ubo_size_main * m_vk_backend->current_frame_idx();
+        uint32_t dynamic_offset_main      = m_voxelizer->m_visualizer_ubo_size * m_vk_backend->current_frame_idx();
         m_voxelizer->begin_render_visualizer(cmd_buf, m_vk_backend);
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 0, 1, &m_ds_transforms_main->handle(), 1, &dynamic_offset_main);
+        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 0, 1, &m_voxelizer->m_ds_visualizer_ubo->handle(), 1, &dynamic_offset_main);
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 0, nullptr);
         m_voxelizer->render_voxels(cmd_buf, objects[0]);
     }
@@ -495,6 +508,11 @@ void Sample::update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf)
     m_transforms_main.lightSpaceMatrix = m_shadow_map->projection() * m_shadow_map->view();
     uint8_t* ptr                       = (uint8_t*)m_ubo_transforms_main->mapped_ptr();
     memcpy(ptr + m_ubo_size_main * m_vk_backend->current_frame_idx(), &m_transforms_main, sizeof(TransformsMain));
+
+    m_voxelizer->m_visualizer_transforms.view = m_transforms_main.view;
+    m_voxelizer->m_visualizer_transforms.projection = m_transforms_main.projection;
+    ptr = (uint8_t*)m_voxelizer->m_visualizer_ubo_data->mapped_ptr();
+    memcpy(ptr + m_voxelizer->m_visualizer_ubo_size * m_vk_backend->current_frame_idx(), &m_voxelizer->m_visualizer_transforms, sizeof(VisualizerUBO));
 
     ptr = (uint8_t*)m_ubo_lights->mapped_ptr();
     memcpy(ptr + m_ubo_size_lights * m_vk_backend->current_frame_idx(), &m_lights, sizeof(Lights));

@@ -16,10 +16,7 @@ layout(set = 2, binding = 0, rgba8) uniform image3D voxelTexture;
 
 int get_index(float boundary1, float boundary2, float value, int voxels_per_side)
 {
-	float maxBoundary = max(boundary1, boundary2);
-	float minBoundary = min(boundary1, boundary2);
-
-	return int((value - minBoundary) / (maxBoundary - minBoundary) * voxels_per_side);
+	return int((value - boundary1) / (boundary2 - boundary1) * voxels_per_side);
 }
 
 void main()
@@ -39,6 +36,6 @@ void main()
 		get_index(min_grid_space.z, max_grid_space.z, frag_grid_space.z, voxels_per_side)
 	);
 
-	const vec4 voxel = vec4(1.0, 1.0, 1.0, 1.0);
-    imageStore(voxelTexture, voxel_coordinate, voxel);
+	const vec4 voxel_value = vec4(1.0, 1.0, 1.0, 1.0);
+    imageStore(voxelTexture, voxel_coordinate, voxel_value);
 }

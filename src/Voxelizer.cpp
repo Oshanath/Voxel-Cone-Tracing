@@ -38,8 +38,9 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     m_framebuffer = dw::vk::Framebuffer::create(backend, m_render_pass, {}, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side);
 
     create_descriptor_sets(backend);
-    create_pipeline_state(backend, vertex_input_state);
+    create_voxelization_pipeline_state(backend, vertex_input_state);
     create_voxel_reset_compute_pipeline_state(backend);
+    create_reset_instance_compute_pipeline_state(backend);
     create_visualizer_compute_pipeline_state(backend);
     create_visualizer_graphics_pipeline_state(backend, vertex_input_state, m_viewport_width, m_viewport_height);
 
@@ -89,26 +90,34 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_indirect_buffer_size = backend->aligned_dynamic_ubo_size(sizeof(VkDrawIndirectCommand));
     m_indirect_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_indirect_buffer_size, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
+    m_visualizer_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelizerData));
+    m_visualizer_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_visualizer_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
     dw::vk::DescriptorSetLayout::Desc desc;
-    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
     m_ds_layout_ubo = dw::vk::DescriptorSetLayout::create(backend, desc);
+    m_ds_layout_ubo->set_name("Voxelizer::m_ds_layout_ubo");
 
     DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
     m_ds_layout_image = dw::vk::DescriptorSetLayout::create(backend, desc);
+    m_ds_layout_image->set_name("Voxelizer::m_ds_layout_image");
 
     DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
     m_ds_layout_instance_buffer = dw::vk::DescriptorSetLayout::create(backend, desc);
+    m_ds_layout_instance_buffer->set_name("Voxelizer::m_ds_layout_instance_buffer");
 
     DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
     m_ds_layout_indirect_buffer = dw::vk::DescriptorSetLayout::create(backend, desc);
+    m_ds_layout_indirect_buffer->set_name("Voxelizer::m_ds_layout_indirect_buffer");
 
     m_ds_data  = backend->allocate_descriptor_set(m_ds_layout_ubo);
     m_ds_image = backend->allocate_descriptor_set(m_ds_layout_image);
     m_ds_instance_buffer = backend->allocate_descriptor_set(m_ds_layout_instance_buffer);
     m_ds_indirect_buffer = backend->allocate_descriptor_set(m_ds_layout_indirect_buffer);
+    m_ds_visualizer_ubo  = backend->allocate_descriptor_set(m_ds_layout_ubo);
 
     // -------------------------------------------------------------------
 
@@ -130,6 +139,23 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     write_data.pBufferInfo     = &buffer_info;
     write_data.dstBinding      = 0;
     write_data.dstSet          = m_ds_data->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+
+    // Visualizer UBO Transforms
+    DW_ZERO_MEMORY(buffer_info);
+    DW_ZERO_MEMORY(write_data);
+
+    buffer_info.buffer = m_visualizer_ubo_data->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = sizeof(VisualizerUBO);
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    write_data.pBufferInfo     = &buffer_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_visualizer_ubo->handle();
 
     vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
 
@@ -227,6 +253,38 @@ void Voxelizer::reset_voxelization_image_memory_barrier_voxel_grid(dw::vk::Comma
     vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
+void Voxelizer::reset_init_buffer_memory_barrier_indirect(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+    VkBufferMemoryBarrier barrier = {};
+    barrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.buffer                = m_indirect_buffer->handle();
+    barrier.srcAccessMask         = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask         = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.srcQueueFamilyIndex   = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex   = VK_QUEUE_FAMILY_IGNORED;
+    barrier.size                  = m_indirect_buffer_size;
+    barrier.offset                = 0;
+    barrier.pNext                 = nullptr;
+
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
+}
+
+void Voxelizer::reset_voxelization_buffer_memory_barrier_indirect(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+    VkBufferMemoryBarrier barrier            = {};
+    barrier.sType                           = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.buffer                           = m_indirect_buffer->handle();
+    barrier.srcAccessMask                    = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask                    = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.size                             = m_indirect_buffer_size;
+    barrier.offset                           = 0;
+    barrier.pNext                            = nullptr;
+
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
+}
+
 void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     VkImageMemoryBarrier barrier            = {};
@@ -249,22 +307,18 @@ void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::v
 
 void Voxelizer::visualization_main_buffer_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
-    /*VkImageMemoryBarrier barrier            = {};
-    barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.image                           = m_image->handle();
-    barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
-    barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
-    barrier.srcAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT;
-    barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT;
-    barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel   = 0;
-    barrier.subresourceRange.levelCount     = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount     = 1;
+    VkBufferMemoryBarrier barrier = {};
+    barrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.buffer                = m_instance_buffer->handle();
+    barrier.srcAccessMask         = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask         = VK_ACCESS_SHADER_READ_BIT;
+    barrier.srcQueueFamilyIndex   = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex   = VK_QUEUE_FAMILY_IGNORED;
+    barrier.size                  = m_instance_buffer_size;
+    barrier.offset                = 0;
+    barrier.pNext                 = nullptr;
 
-    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);*/
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
 }
 
 glm::vec3 Voxelizer::get_center() const
@@ -355,7 +409,7 @@ void Voxelizer::end_render(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdEndRenderPass(cmd_buf->handle());
 }
 
-void Voxelizer::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state)
+void Voxelizer::create_voxelization_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state)
 {
     // ---------------------------------------------------------------------------
     // Create shader modules
@@ -496,11 +550,26 @@ void Voxelizer::create_voxel_reset_compute_pipeline_state(dw::vk::Backend::Ptr b
     pso_desc.set_shader_stage(cs, "main");
 
     dw::vk::PipelineLayout::Desc pl_desc;
-    pl_desc.add_descriptor_set_layout(m_ds_layout_image);
+    pl_desc.add_descriptor_set_layout(m_ds_layout_image)
+        .add_descriptor_set_layout(m_ds_layout_indirect_buffer);
     m_reset_compute_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
 
     pso_desc.set_pipeline_layout(m_reset_compute_pipeline_layout);
     m_reset_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
+}
+
+void Voxelizer::create_reset_instance_compute_pipeline_state(dw::vk::Backend::Ptr backend)
+{
+    dw::vk::ShaderModule::Ptr     cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/reset_instance.comp.spv");
+    dw::vk::ComputePipeline::Desc pso_desc;
+    pso_desc.set_shader_stage(cs, "main");
+
+    dw::vk::PipelineLayout::Desc pl_desc;
+    pl_desc.add_descriptor_set_layout(m_ds_layout_indirect_buffer);
+    m_reset_instance_compute_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
+
+    pso_desc.set_pipeline_layout(m_reset_instance_compute_pipeline_layout);
+    m_reset_instance_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
 }
 
 void Voxelizer::create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr backend)
@@ -512,11 +581,14 @@ void Voxelizer::create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr ba
     dw::vk::PipelineLayout::Desc pl_desc;
     pl_desc.add_descriptor_set_layout(m_ds_layout_image)
         .add_descriptor_set_layout(m_ds_layout_instance_buffer)
-        .add_descriptor_set_layout(m_ds_layout_indirect_buffer);
+        .add_descriptor_set_layout(m_ds_layout_indirect_buffer)
+        .add_descriptor_set_layout(m_ds_layout_ubo);
     m_visualizer_compute_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
+    m_visualizer_compute_pipeline_layout->set_name("Voxelizer::m_visualizer_compute_pipeline_layout");
 
     pso_desc.set_pipeline_layout(m_visualizer_compute_pipeline_layout);
     m_visualizer_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
+    m_visualizer_compute_pipeline->set_name("Voxelizer::m_visualizer_compute_pipeline");
 }
 
 void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height)
@@ -654,7 +726,16 @@ void Voxelizer::reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
     // Compute
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_compute_pipeline->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_compute_pipeline_layout->handle(), 0, 1, &m_ds_image->handle(), 0, nullptr);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_compute_pipeline_layout->handle(), 1, 1, &m_ds_indirect_buffer->handle(), 0, nullptr);
     vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);
+}
+
+void Voxelizer::reset_instance_buffer(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+    // Compute
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_instance_compute_pipeline->handle());
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_instance_compute_pipeline_layout->handle(), 0, 1, &m_ds_indirect_buffer->handle(), 0, nullptr);
+    vkCmdDispatch(cmd_buf->handle(), 1, 1, 1);
 }
 
 void Voxelizer::begin_render_visualizer(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
