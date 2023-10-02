@@ -65,6 +65,7 @@ private:
 
     bool load_object(std::string filename);
     bool        load_objects();
+    bool load_cube();
     inline void create_camera();
 
     void render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout);
@@ -127,4 +128,5 @@ private:
     // VCT
     std::unique_ptr<Voxelizer> m_voxelizer;
     std::vector<dw::vk::Fence::Ptr> m_compute_fences;
+    bool m_voxelization_visualization_enabled = false;
 };

@@ -20,6 +20,8 @@ struct VoxelizerData
 struct VisualizerUBO
 {
 	DW_ALIGNED(16)
+		glm::mat4 model;
+	DW_ALIGNED(16)
 		glm::mat4 view;
 	DW_ALIGNED(16)
 		glm::mat4 projection;
@@ -69,6 +71,7 @@ public:
 	dw::vk::DescriptorSet::Ptr       m_ds_visualizer_ubo;
 	VoxelizerData					 m_data;
 	VisualizerUBO					 m_visualizer_transforms;
+	RenderObject					 m_cube;
 
 	Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height);
 	~Voxelizer();
@@ -85,7 +88,7 @@ public:
 	void reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void reset_instance_buffer(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void begin_render_visualizer(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend);
-	void render_voxels(dw::vk::CommandBuffer::Ptr cmd_buf, RenderObject& object);
+	void render_voxels(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void reset_voxelization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void reset_init_buffer_memory_barrier_indirect(dw::vk::CommandBuffer::Ptr cmd_buf);
@@ -113,4 +116,8 @@ private:
 	void create_reset_instance_compute_pipeline_state(dw::vk::Backend::Ptr backend);
 	void create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr backend);
 	void create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height);
+
+public:
+	const float m_voxel_width;
+
 };

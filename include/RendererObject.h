@@ -14,7 +14,7 @@ public:
     dw::Mesh::Ptr mesh;
 
     inline RenderObject(dw::Mesh::Ptr mesh) :
-        position(glm::vec3(1.0f, 1.0f, 1.0f)),
+        position(glm::vec3(0.0f, 0.0f, 0.0f)),
         rotation(glm::angleAxis(0.0f, glm::vec3(0.0f, 1.0f, 0.0f))),
         scale(1.0f),
         mesh(mesh) { }
@@ -22,9 +22,9 @@ public:
     inline glm::mat4 get_model()
     {
         auto model = glm::mat4(1.0f);
-        model = glm::translate(model, position);
+        model = glm::scale(model, glm::vec3(scale));
         model = glm::mat4_cast(rotation) * model;
-        model = glm::scale(model, glm::vec3(0.6f));
+        model = glm::translate(model, position);
         return model;
     }
 

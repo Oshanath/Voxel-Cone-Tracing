@@ -14,7 +14,9 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     m_proj(glm::ortho(-m_length / 2, m_length / 2, -m_length / 2, m_length / 2, 0.0f, m_length)),
     m_voxels_per_side(voxels_per_side),
     m_viewport_width(m_viewport_width),
-    m_viewport_height(m_viewport_height)
+    m_viewport_height(m_viewport_height),
+    m_voxel_width(m_length / m_voxels_per_side),
+    m_cube(RenderObject(dw::Mesh::load(backend, "cube.obj")))
 {
 
     VkFormat voxel_grid_format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -53,6 +55,8 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
 
     uint8_t* ptr = (uint8_t*)m_indirect_buffer->mapped_ptr();
     memcpy(ptr, &indirect_command, sizeof(VkDrawIndexedIndirectCommand));
+
+    m_cube.scale = m_voxel_width - 40.0f;
 }
 
 Voxelizer::~Voxelizer()
@@ -786,11 +790,11 @@ void Voxelizer::begin_render_visualizer(dw::vk::CommandBuffer::Ptr cmd_buf, dw::
     vkCmdSetScissor(cmd_buf->handle(), 0, 1, &scissor_rect);
 }
 
-void Voxelizer::render_voxels(dw::vk::CommandBuffer::Ptr cmd_buf, RenderObject& object)
+void Voxelizer::render_voxels(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     VkDeviceSize offset = 0;
 
-    auto mesh = object.mesh;
+    auto mesh = m_cube.mesh;
 
     vkCmdBindVertexBuffers(cmd_buf->handle(), 0, 1, &mesh->vertex_buffer()->handle(), &offset);
     vkCmdBindIndexBuffer(cmd_buf->handle(), mesh->index_buffer()->handle(), 0, VK_INDEX_TYPE_UINT32);

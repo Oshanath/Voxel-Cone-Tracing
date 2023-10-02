@@ -31,6 +31,8 @@ bool Sample::init(int argc, const char* argv[])
         m_meshes[0]->vertex_input_state_desc(),
         m_width,
         m_height);
+    std::cout << "voxel width = " << m_voxelizer->m_voxel_width << std::endl;
+    //objects[0].scale = m_voxelizer->m_voxel_width * 100;
 
     create_descriptor_sets();
     write_descriptor_sets();
@@ -339,11 +341,7 @@ bool Sample::load_object(std::string filename)
 bool Sample::load_objects()
 {
     std::vector<bool> results;
-    results.push_back(load_object("cube.obj"));
-    // results.push_back(load_object("teapot.obj"));
-     results.push_back(load_object("sponza.obj"));
-
-    objects[objects.size() - 1].position = glm::vec3(20.0f, 20.0f, 20.0f);
+    results.push_back(load_object("sponza.obj"));
 
     for (bool result : results) {
         if (!result)
@@ -471,13 +469,13 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     uint32_t lights_dynamic_offset = m_ubo_size_lights * m_vk_backend->current_frame_idx();
     update_uniforms(cmd_buf);
 
-    if (true)
+    if (m_voxelization_visualization_enabled)
     {
         uint32_t dynamic_offset_main      = m_voxelizer->m_visualizer_ubo_size * m_vk_backend->current_frame_idx();
         m_voxelizer->begin_render_visualizer(cmd_buf, m_vk_backend);
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 0, 1, &m_voxelizer->m_ds_visualizer_ubo->handle(), 1, &dynamic_offset_main);
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 0, nullptr);
-        m_voxelizer->render_voxels(cmd_buf, objects[0]);
+        m_voxelizer->render_voxels(cmd_buf);
     }
     else
     {
@@ -495,6 +493,8 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     //m_debug_draw.sphere(10.0f, m_voxelizer->get_cam_pos(), glm::vec3(0.0f, 1.0f, 0.0f));
     m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
 
+    ImGui::Checkbox("Voxelization Visualization", &m_voxelization_visualization_enabled);
+
     render_gui(cmd_buf);
     vkCmdEndRenderPass(cmd_buf->handle());
 }
@@ -511,6 +511,7 @@ void Sample::update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     m_voxelizer->m_visualizer_transforms.view = m_transforms_main.view;
     m_voxelizer->m_visualizer_transforms.projection = m_transforms_main.projection;
+    m_voxelizer->m_visualizer_transforms.model      = m_voxelizer->m_cube.get_model();
     ptr = (uint8_t*)m_voxelizer->m_visualizer_ubo_data->mapped_ptr();
     memcpy(ptr + m_voxelizer->m_visualizer_ubo_size * m_vk_backend->current_frame_idx(), &m_voxelizer->m_visualizer_transforms, sizeof(VisualizerUBO));
 
