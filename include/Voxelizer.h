@@ -95,6 +95,7 @@ public:
 	void reset_voxelization_buffer_memory_barrier_indirect(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void voxelization_visualization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void visualization_main_buffer_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf);
+	void create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr backend);
 
 private:
 	glm::vec3 m_AABB_min;
@@ -115,9 +116,9 @@ private:
 	void create_voxel_reset_compute_pipeline_state(dw::vk::Backend::Ptr backend);
 	void create_reset_instance_compute_pipeline_state(dw::vk::Backend::Ptr backend);
 	void create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr backend);
-	void create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height);
 
 public:
 	const float m_voxel_width;
+	bool m_voxelization_visualization_wireframe = false;
 
 };

@@ -438,6 +438,11 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     DW_SCOPED_SAMPLE("render", cmd_buf);
 
+    if (ImGui::Checkbox("Voxelization wireframe", &m_voxelizer->m_voxelization_visualization_wireframe))
+    {
+        m_voxelizer->create_visualizer_graphics_pipeline_state(m_vk_backend);
+    }
+
     m_shadow_map->begin_render(cmd_buf, m_vk_backend);
     render_objects(cmd_buf, m_shadow_map->m_pipeline_layout);
     m_shadow_map->end_render(cmd_buf);

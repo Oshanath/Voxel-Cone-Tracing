@@ -44,7 +44,7 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     create_voxel_reset_compute_pipeline_state(backend);
     create_reset_instance_compute_pipeline_state(backend);
     create_visualizer_compute_pipeline_state(backend);
-    create_visualizer_graphics_pipeline_state(backend, vertex_input_state, m_viewport_width, m_viewport_height);
+    create_visualizer_graphics_pipeline_state(backend);
 
     VkDrawIndexedIndirectCommand indirect_command;
     indirect_command.instanceCount = 1;
@@ -596,7 +596,7 @@ void Voxelizer::create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr ba
     m_visualizer_compute_pipeline->set_name("Voxelizer::m_visualizer_compute_pipeline");
 }
 
-void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height)
+void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr backend)
 {
     // ---------------------------------------------------------------------------
     // Create shader modules
@@ -614,7 +614,7 @@ void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr b
     // Create vertex input state
     // ---------------------------------------------------------------------------
 
-    pso_desc.set_vertex_input_state(vertex_input_state);
+    pso_desc.set_vertex_input_state(m_cube.mesh->vertex_input_state_desc());
 
     // ---------------------------------------------------------------------------
     // Create pipeline input assembly state
@@ -646,12 +646,15 @@ void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr b
 
     rs_state.set_depth_clamp(VK_FALSE)
         .set_rasterizer_discard_enable(VK_FALSE)
-        //.set_polygon_mode(VK_POLYGON_MODE_FILL)
-        .set_polygon_mode(VK_POLYGON_MODE_LINE)
         .set_line_width(1.0f)
         .set_cull_mode(VK_CULL_MODE_NONE)
         .set_front_face(VK_FRONT_FACE_COUNTER_CLOCKWISE)
         .set_depth_bias(VK_FALSE);
+
+    if (m_voxelization_visualization_wireframe)
+        rs_state.set_polygon_mode(VK_POLYGON_MODE_LINE);
+    else
+        rs_state.set_polygon_mode(VK_POLYGON_MODE_FILL);
 
     pso_desc.set_rasterization_state(rs_state);
 
