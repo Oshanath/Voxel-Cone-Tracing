@@ -6,12 +6,12 @@
 
 Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height) :
     m_AABB_min(AABB_min), m_AABB_max(AABB_max),
-    m_center((AABB_min + AABB_max) / 2.0f),
     m_length(get_length(AABB_min, AABB_max)),
+    m_center((AABB_min + AABB_max) / 2.0f),
     m_cam_pos(m_center + glm::vec3(m_length / 2, 0.0f, 0.0f)),
     m_cam_forward(glm::vec3(-1.0f, 0.0f, 0.0f)),
     m_view(glm::lookAt(m_cam_pos, m_center, glm::vec3(0.0f, 1.0f, 0.0f))),
-    m_proj(glm::ortho(-m_length / 2, m_length / 2, -m_length / 2, m_length / 2, 0.0f, m_length)),
+    m_proj(glm::ortho(-m_length/2, m_length/2, -m_length/2, m_length/2, -m_length, m_length)),
     m_voxels_per_side(voxels_per_side),
     m_viewport_width(m_viewport_width),
     m_viewport_height(m_viewport_height),

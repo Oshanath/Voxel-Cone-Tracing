@@ -25,8 +25,8 @@ bool Sample::init(int argc, const char* argv[])
     // Voxelizer
     m_voxelizer = std::make_unique<Voxelizer>(
         m_vk_backend,
-        glm::vec3(-1250.63f, -102.853f, 718.932f), 
-        glm::vec3(1196.01f, 907.495f, -805.504f),
+        glm::vec3(-1963.12f, -160.925f, 1119.94f), 
+        glm::vec3(1950.5f, 1543.24f, -1285.63f),
         64,
         m_meshes[0]->vertex_input_state_desc(),
         m_width,
@@ -492,10 +492,11 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         render_objects(cmd_buf, m_pipeline_layout_main);
     }
 
-    //AABB aabb = m_voxelizer->get_AABB();
-    //m_debug_draw.aabb(aabb.min, aabb.max, glm::vec3(1.0f, 1.0f, 1.0f));
-    //m_debug_draw.frustum(m_voxelizer->get_proj(), m_voxelizer->get_view(), glm::vec3(1.0f, 0.0f, 0.0f));
-    //m_debug_draw.sphere(10.0f, m_voxelizer->get_cam_pos(), glm::vec3(0.0f, 1.0f, 0.0f));
+    AABB aabb = m_voxelizer->get_AABB();
+    m_debug_draw.aabb(aabb.min, aabb.max, glm::vec3(1.0f, 1.0f, 1.0f));
+    m_debug_draw.frustum(m_voxelizer->get_proj(), m_voxelizer->get_view(), glm::vec3(1.0f, 0.0f, 0.0f));
+    m_debug_draw.sphere(10.0f, m_voxelizer->get_cam_pos(), glm::vec3(0.0f, 1.0f, 0.0f));
+    //m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_voxelizer->get_proj() * m_voxelizer->get_view(), m_voxelizer->get_cam_pos());
     m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
 
     ImGui::Checkbox("Voxelization Visualization", &m_voxelization_visualization_enabled);
@@ -513,6 +514,12 @@ void Sample::update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf)
     m_transforms_main.lightSpaceMatrix = m_shadow_map->projection() * m_shadow_map->view();
     uint8_t* ptr                       = (uint8_t*)m_ubo_transforms_main->mapped_ptr();
     memcpy(ptr + m_ubo_size_main * m_vk_backend->current_frame_idx(), &m_transforms_main, sizeof(TransformsMain));
+
+    /*m_transforms_main.view             = m_voxelizer->get_view();
+    m_transforms_main.projection       = m_voxelizer->get_proj();
+    m_transforms_main.lightSpaceMatrix = m_shadow_map->projection() * m_shadow_map->view();
+    uint8_t* ptr                       = (uint8_t*)m_ubo_transforms_main->mapped_ptr();
+    memcpy(ptr + m_ubo_size_main * m_vk_backend->current_frame_idx(), &m_transforms_main, sizeof(TransformsMain));*/
 
     m_voxelizer->m_visualizer_transforms.view = m_transforms_main.view;
     m_voxelizer->m_visualizer_transforms.projection = m_transforms_main.projection;
