@@ -56,7 +56,8 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     uint8_t* ptr = (uint8_t*)m_indirect_buffer->mapped_ptr();
     memcpy(ptr, &indirect_command, sizeof(VkDrawIndexedIndirectCommand));
 
-    m_cube.scale = m_voxel_width - 40.0f;
+    float cos45  = glm::cos(glm::radians(45.0f));
+    m_cube.scale = m_voxel_width / (2 * cos45 * cos45);
 }
 
 Voxelizer::~Voxelizer()
@@ -645,7 +646,8 @@ void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr b
 
     rs_state.set_depth_clamp(VK_FALSE)
         .set_rasterizer_discard_enable(VK_FALSE)
-        .set_polygon_mode(VK_POLYGON_MODE_FILL)
+        //.set_polygon_mode(VK_POLYGON_MODE_FILL)
+        .set_polygon_mode(VK_POLYGON_MODE_LINE)
         .set_line_width(1.0f)
         .set_cull_mode(VK_CULL_MODE_NONE)
         .set_front_face(VK_FRONT_FACE_COUNTER_CLOCKWISE)
