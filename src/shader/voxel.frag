@@ -1,6 +1,6 @@
 #version 450
 
-layout (location = 0) in vec4 FS_IN_FragPos;
+layout (location = 0) in vec3 FS_IN_FragPos;
 layout (location = 1) in vec2 FS_IN_Texcoord;
 layout (location = 2) in vec3 FS_IN_Normal;
 
@@ -27,5 +27,5 @@ void main()
 	float voxel_width = (_max.x - _min.x) / float(voxels_per_side);
 
 	const vec4 voxel_value = vec4(1.0, 1.0, 1.0, 1.0);
-	imageStore(voxelTexture, ivec3((FS_IN_FragPos.xyz - _min) / voxel_width), voxel_value);
+	imageStore(voxelTexture, ivec3((FS_IN_FragPos - _min) / voxel_width), voxel_value);
 }

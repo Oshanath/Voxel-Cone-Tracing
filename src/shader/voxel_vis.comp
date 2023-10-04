@@ -48,6 +48,5 @@ void main()
         float voxel_width = (_max.x - _min.x) / float(voxels_per_side);
 
         positions[index] = vec4(_min+ vec3(voxel_width / 2) + vec3(voxel_coordinate) * voxel_width, 1.0);
-        //positions[index] = vec4(_min * 2, 1.0);
 	}
 }

@@ -8,8 +8,8 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     m_AABB_min(AABB_min), m_AABB_max(AABB_max),
     m_length(get_length(AABB_min, AABB_max)),
     m_center((AABB_min + AABB_max) / 2.0f),
-    m_cam_pos(m_center + glm::vec3(m_length / 2, 0.0f, 0.0f)),
-    m_cam_forward(glm::vec3(-1.0f, 0.0f, 0.0f)),
+    m_cam_pos(m_center + glm::vec3(0.0f, 0.0f, m_length / 2)),
+    m_cam_forward(glm::vec3(0.0f, 0.0f, -1.0f)),
     m_view(glm::lookAt(m_cam_pos, m_center, glm::vec3(0.0f, 1.0f, 0.0f))),
     m_proj(glm::ortho(-m_length/2, m_length/2, -m_length/2, m_length/2, -m_length, m_length)),
     m_voxels_per_side(voxels_per_side),
@@ -99,7 +99,7 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_visualizer_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_visualizer_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     dw::vk::DescriptorSetLayout::Desc desc;
-    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
     m_ds_layout_ubo = dw::vk::DescriptorSetLayout::create(backend, desc);
     m_ds_layout_ubo->set_name("Voxelizer::m_ds_layout_ubo");
 
