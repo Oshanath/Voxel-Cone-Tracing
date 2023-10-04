@@ -57,7 +57,7 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     memcpy(ptr, &indirect_command, sizeof(VkDrawIndexedIndirectCommand));
 
     float cos45  = glm::cos(glm::radians(45.0f));
-    m_cube.scale = m_voxel_width / (2 * cos45 * cos45);
+    m_cube.scale = m_voxel_width;
 }
 
 Voxelizer::~Voxelizer()
@@ -397,8 +397,8 @@ void Voxelizer::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend
     m_data.projection = get_proj();
 
     AABB aabb                 = get_AABB();
-    m_data.AABB_min = glm::vec4(aabb.min, float(get_voxels_per_side()));
-    m_data.AABB_max = aabb.max;
+    m_data.AABB_min           = glm::vec4(aabb.min, 1.0f);
+    m_data.AABB_max           = glm::vec4(aabb.max, 1.0f);
 
     uint8_t* ptr = (uint8_t*)m_ubo_data->mapped_ptr();
     memcpy(ptr + m_ubo_size * backend->current_frame_idx(), &m_data, sizeof(VoxelizerData));

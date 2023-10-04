@@ -14,7 +14,7 @@ struct VoxelizerData
 	DW_ALIGNED(16)
 		glm::vec4 AABB_min;
 	DW_ALIGNED(16)
-		glm::vec3 AABB_max;
+		glm::vec4 AABB_max;
 };
 
 struct VisualizerUBO

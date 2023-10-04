@@ -101,7 +101,7 @@ private:
     float m_sideways_speed     = 0.0f;
     float m_climbing_speed     = 0.0f;
     float m_camera_sensitivity = 0.05f;
-    float m_camera_speed       = 0.2f;
+    float m_camera_speed       = 1.0f;
 
     // Camera 
     float m_camera_x;

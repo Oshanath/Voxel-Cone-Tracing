@@ -9,7 +9,7 @@ layout (set = 1, binding = 0) uniform PerFrameUBO
 	mat4 view;
 	mat4 projection;
 	vec4 aabb_min;
-	vec3 aabb_max;
+	vec4 aabb_max;
 } ubo;
 
 layout(set = 2, binding = 0, rgba8) uniform image3D voxelTexture;
@@ -23,19 +23,9 @@ void main()
 {
 	vec3 _min = ubo.aabb_min.xyz;
 	vec3 _max = ubo.aabb_max.xyz;
-	int voxels_per_side = int(ubo.aabb_min.w);
-	mat4 grid_space_transformation = ubo.projection * ubo.view;
-
-	vec4 frag_grid_space = grid_space_transformation * FS_IN_FragPos;
-	vec4 min_grid_space = grid_space_transformation * vec4(_min, 1.0);
-	vec4 max_grid_space = grid_space_transformation * vec4(_max, 1.0);
-
-	ivec3 voxel_coordinate = ivec3(
-		get_index(min_grid_space.x, max_grid_space.x, frag_grid_space.x, voxels_per_side),
-		get_index(min_grid_space.y, max_grid_space.y, frag_grid_space.y, voxels_per_side),
-		get_index(min_grid_space.z, max_grid_space.z, frag_grid_space.z, voxels_per_side)
-	);
+	int voxels_per_side = imageSize(voxelTexture).x;
+	float voxel_width = (_max.x - _min.x) / float(voxels_per_side);
 
 	const vec4 voxel_value = vec4(1.0, 1.0, 1.0, 1.0);
-    imageStore(voxelTexture, voxel_coordinate, voxel_value);
+	imageStore(voxelTexture, ivec3((FS_IN_FragPos.xyz - _min) / voxel_width), voxel_value);
 }
