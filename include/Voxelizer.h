@@ -56,6 +56,8 @@ public:
 	dw::vk::Buffer::Ptr				 m_ubo_data;
 	size_t							 m_instance_buffer_size;
 	dw::vk::Buffer::Ptr				 m_instance_buffer;
+	size_t							 m_instance_color_buffer_size;
+	dw::vk::Buffer::Ptr				 m_instance_color_buffer;
 	size_t							 m_indirect_buffer_size;
 	dw::vk::Buffer::Ptr				 m_indirect_buffer;
 	size_t							 m_visualizer_ubo_size;
@@ -63,10 +65,12 @@ public:
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_image;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_instance_buffer;
+	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_instance_color_buffer;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_indirect_buffer;
 	dw::vk::DescriptorSet::Ptr       m_ds_data;
 	dw::vk::DescriptorSet::Ptr       m_ds_image;
 	dw::vk::DescriptorSet::Ptr       m_ds_instance_buffer;
+	dw::vk::DescriptorSet::Ptr       m_ds_instance_color_buffer;
 	dw::vk::DescriptorSet::Ptr       m_ds_indirect_buffer;
 	dw::vk::DescriptorSet::Ptr       m_ds_visualizer_ubo;
 	VoxelizerData					 m_data;

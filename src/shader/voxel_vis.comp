@@ -8,6 +8,10 @@ layout(std140, set=1, binding = 0) buffer InstanceBuffer {
    vec4 positions[];
 };
 
+layout(std140, set=4, binding = 0) buffer InstanceColorBuffer {
+   vec4 colors[];
+};
+
 struct VkDrawIndexedIndirectCommand {
     uint    indexCount;
     uint    instanceCount;
@@ -38,7 +42,7 @@ void main()
 
     vec4 voxel_value = imageLoad(voxelTexture, voxel_coordinate);
 
-    if(voxel_value.x > 0.5)
+    if(voxel_value.w >= 1.0)
 	{
 		uint index = atomicAdd(command.instanceCount, 1);
 
@@ -48,5 +52,6 @@ void main()
         float voxel_width = (_max.x - _min.x) / float(voxels_per_side);
 
         positions[index] = vec4(_min+ vec3(voxel_width / 2) + vec3(voxel_coordinate) * voxel_width, 1.0);
+        colors[index] = vec4(voxel_value.xyz / voxel_value.w, 1.0);
 	}
 }

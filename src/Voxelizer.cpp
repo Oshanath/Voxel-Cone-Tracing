@@ -92,6 +92,9 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_instance_buffer_size = sizeof(InstanceData) * m_voxels_per_side * m_voxels_per_side * m_voxels_per_side;
     m_instance_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_instance_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
+    m_instance_color_buffer_size = sizeof(InstanceData) * m_voxels_per_side * m_voxels_per_side * m_voxels_per_side;
+    m_instance_color_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_instance_color_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
     m_indirect_buffer_size = backend->aligned_dynamic_ubo_size(sizeof(VkDrawIndirectCommand));
     m_indirect_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_indirect_buffer_size, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
@@ -114,12 +117,18 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ds_layout_instance_buffer->set_name("Voxelizer::m_ds_layout_instance_buffer");
 
     DW_ZERO_MEMORY(desc);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+    m_ds_layout_instance_color_buffer = dw::vk::DescriptorSetLayout::create(backend, desc);
+    m_ds_layout_instance_color_buffer->set_name("Voxelizer::m_ds_layout_instance_buffer");
+
+    DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
     m_ds_layout_indirect_buffer = dw::vk::DescriptorSetLayout::create(backend, desc);
     m_ds_layout_indirect_buffer->set_name("Voxelizer::m_ds_layout_indirect_buffer");
 
     m_ds_data  = backend->allocate_descriptor_set(m_ds_layout_ubo);
     m_ds_image = backend->allocate_descriptor_set(m_ds_layout_image);
+    m_ds_instance_color_buffer = backend->allocate_descriptor_set(m_ds_layout_instance_color_buffer);
     m_ds_instance_buffer = backend->allocate_descriptor_set(m_ds_layout_instance_buffer);
     m_ds_indirect_buffer = backend->allocate_descriptor_set(m_ds_layout_indirect_buffer);
     m_ds_visualizer_ubo  = backend->allocate_descriptor_set(m_ds_layout_ubo);
@@ -178,6 +187,23 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     write_data.pBufferInfo     = &buffer_info;
     write_data.dstBinding      = 0;
     write_data.dstSet          = m_ds_instance_buffer->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+
+    // SSBO instance buffer
+    DW_ZERO_MEMORY(buffer_info);
+    DW_ZERO_MEMORY(write_data);
+
+    buffer_info.buffer = m_instance_color_buffer->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = m_instance_color_buffer_size;
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_data.pBufferInfo     = &buffer_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_instance_color_buffer->handle();
 
     vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
 
@@ -312,18 +338,31 @@ void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::v
 
 void Voxelizer::visualization_main_buffer_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
-    VkBufferMemoryBarrier barrier = {};
-    barrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    barrier.buffer                = m_instance_buffer->handle();
-    barrier.srcAccessMask         = VK_ACCESS_SHADER_WRITE_BIT;
-    barrier.dstAccessMask         = VK_ACCESS_SHADER_READ_BIT;
-    barrier.srcQueueFamilyIndex   = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex   = VK_QUEUE_FAMILY_IGNORED;
-    barrier.size                  = m_instance_buffer_size;
-    barrier.offset                = 0;
-    barrier.pNext                 = nullptr;
+    VkBufferMemoryBarrier instance_buffer_barrier = {};
+    instance_buffer_barrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    instance_buffer_barrier.buffer                = m_instance_buffer->handle();
+    instance_buffer_barrier.srcAccessMask         = VK_ACCESS_SHADER_WRITE_BIT;
+    instance_buffer_barrier.dstAccessMask         = VK_ACCESS_SHADER_READ_BIT;
+    instance_buffer_barrier.srcQueueFamilyIndex   = VK_QUEUE_FAMILY_IGNORED;
+    instance_buffer_barrier.dstQueueFamilyIndex   = VK_QUEUE_FAMILY_IGNORED;
+    instance_buffer_barrier.size                  = m_instance_buffer_size;
+    instance_buffer_barrier.offset                = 0;
+    instance_buffer_barrier.pNext                 = nullptr;
 
-    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &instance_buffer_barrier, 0, nullptr);
+
+    VkBufferMemoryBarrier color_buffer_barrier = {};
+    color_buffer_barrier.sType                    = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    color_buffer_barrier.buffer                   = m_instance_color_buffer->handle();
+    color_buffer_barrier.srcAccessMask            = VK_ACCESS_SHADER_WRITE_BIT;
+    color_buffer_barrier.dstAccessMask            = VK_ACCESS_SHADER_READ_BIT;
+    color_buffer_barrier.srcQueueFamilyIndex      = VK_QUEUE_FAMILY_IGNORED;
+    color_buffer_barrier.dstQueueFamilyIndex      = VK_QUEUE_FAMILY_IGNORED;
+    color_buffer_barrier.size                     = m_instance_color_buffer_size;
+    color_buffer_barrier.offset                   = 0;
+    color_buffer_barrier.pNext                    = nullptr;
+
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &color_buffer_barrier, 0, nullptr);
 }
 
 glm::vec3 Voxelizer::get_center() const
@@ -587,7 +626,8 @@ void Voxelizer::create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr ba
     pl_desc.add_descriptor_set_layout(m_ds_layout_image)
         .add_descriptor_set_layout(m_ds_layout_instance_buffer)
         .add_descriptor_set_layout(m_ds_layout_indirect_buffer)
-        .add_descriptor_set_layout(m_ds_layout_ubo);
+        .add_descriptor_set_layout(m_ds_layout_ubo)
+        .add_descriptor_set_layout(m_ds_layout_instance_color_buffer);
     m_visualizer_compute_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
     m_visualizer_compute_pipeline_layout->set_name("Voxelizer::m_visualizer_compute_pipeline_layout");
 
@@ -708,7 +748,8 @@ void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr b
     dw::vk::PipelineLayout::Desc pl_desc;
 
     pl_desc.add_descriptor_set_layout(m_ds_layout_ubo)
-        .add_descriptor_set_layout(m_ds_layout_instance_buffer);
+        .add_descriptor_set_layout(m_ds_layout_instance_buffer)
+        .add_descriptor_set_layout(m_ds_layout_instance_color_buffer);
 
     m_visualizer_graphics_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
 
@@ -811,9 +852,6 @@ void Voxelizer::render_voxels(dw::vk::CommandBuffer::Ptr cmd_buf)
         auto& submesh = submeshes[i];
         auto& mat     = mesh->material(submesh.mat_idx);
 
-        // Issue draw call.
-        //vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, m_cube_positions.size(), submesh.base_index, submesh.base_vertex, 0);
-        //vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, m_cube_positions.size(), submesh.base_index, submesh.base_vertex, 0);
         vkCmdDrawIndexedIndirect(cmd_buf->handle(), m_indirect_buffer->handle(), 0, 1, 0);
     }
 }

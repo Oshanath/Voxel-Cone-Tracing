@@ -20,7 +20,7 @@ void main()
     uint z = gl_GlobalInvocationID.z;
     ivec3 voxel_coordinate = ivec3(x, y, z);
 
-    const vec4 voxel_value = vec4(0.0, 0.0, 0.0, 1.0);
+    const vec4 voxel_value = vec4(0.0, 0.0, 0.0, 0.0);
    
     imageStore(voxelTexture, voxel_coordinate, voxel_value);
 }

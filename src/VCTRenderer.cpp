@@ -467,6 +467,7 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 0, nullptr);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 2, 1, &m_voxelizer->m_ds_indirect_buffer->handle(), 0, nullptr);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 3, 1, &m_voxelizer->m_ds_data->handle(), 1, &dynamic_offset);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 4, 1, &m_voxelizer->m_ds_instance_color_buffer->handle(), 0, nullptr);
     vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);
 
     m_voxelizer->visualization_main_buffer_memory_barrier(cmd_buf);
@@ -480,6 +481,7 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         m_voxelizer->begin_render_visualizer(cmd_buf, m_vk_backend);
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 0, 1, &m_voxelizer->m_ds_visualizer_ubo->handle(), 1, &dynamic_offset_main);
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 0, nullptr);
+        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 2, 1, &m_voxelizer->m_ds_instance_color_buffer->handle(), 0, nullptr);
         m_voxelizer->render_voxels(cmd_buf);
     }
     else

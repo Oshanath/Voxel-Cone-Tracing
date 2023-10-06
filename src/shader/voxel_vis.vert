@@ -15,6 +15,9 @@ layout(std140, set=1, binding = 0) readonly buffer InstanceBuffer {
    vec4 positions[];
 };
 
+// output instance index to fragment shader as a flat value
+layout (location = 1) flat out int instanceIndex;
+
 void main() 
 {
     // Transform position into world space
@@ -22,4 +25,6 @@ void main()
 
     // Transform world position into clip space
 	gl_Position = ubo.projection * ubo.view * world_pos;
+
+	instanceIndex = gl_InstanceIndex;
 }
