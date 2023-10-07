@@ -101,6 +101,8 @@ public:
 	void visualization_main_buffer_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr backend);
 
+	int get_work_groups_dim();
+
 private:
 	glm::vec3 m_AABB_min;
 	glm::vec3 m_AABB_max;
@@ -124,5 +126,5 @@ private:
 public:
 	const float m_voxel_width;
 	bool m_voxelization_visualization_wireframe = false;
-
+	bool first_time = true;
 };

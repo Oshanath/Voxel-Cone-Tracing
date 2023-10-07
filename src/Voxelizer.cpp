@@ -716,7 +716,7 @@ void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr b
     dw::vk::DepthStencilStateDesc ds_state;
 
     ds_state.set_depth_test_enable(VK_TRUE)
-        .set_depth_write_enable(VK_FALSE)
+        .set_depth_write_enable(VK_TRUE)
         .set_depth_compare_op(VK_COMPARE_OP_LESS)
         .set_depth_bounds_test_enable(VK_FALSE)
         .set_stencil_test_enable(VK_FALSE);
@@ -771,13 +771,18 @@ void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr b
     m_visualizer_graphics_pipeline = dw::vk::GraphicsPipeline::create(backend, pso_desc);
 }
 
+int Voxelizer::get_work_groups_dim()
+{
+    return int(m_voxels_per_side / 8);
+}
+
 void Voxelizer::reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     // Compute
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_compute_pipeline->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_compute_pipeline_layout->handle(), 0, 1, &m_ds_image->handle(), 0, nullptr);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_compute_pipeline_layout->handle(), 1, 1, &m_ds_indirect_buffer->handle(), 0, nullptr);
-    vkCmdDispatch(cmd_buf->handle(), 8, 8, 8);
+    vkCmdDispatch(cmd_buf->handle(), get_work_groups_dim(), get_work_groups_dim(), get_work_groups_dim());
 }
 
 void Voxelizer::reset_instance_buffer(dw::vk::CommandBuffer::Ptr cmd_buf)

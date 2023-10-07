@@ -9,3 +9,7 @@ bin/VCTRenderer.pdb
 lib/
 out/
 /renderdoc.cap
+bin/Debug/
+bin/Release/
+bin/VCTRenderer.exe.manifest
+build/
