@@ -503,6 +503,8 @@ void Voxelizer::create_voxelization_pipeline_state(dw::vk::Backend::Ptr backend,
 
     dw::vk::RasterizationStateDesc rs_state;
 
+    rs_state.set_conservative_raster_mode(VK_CONSERVATIVE_RASTERIZATION_MODE_OVERESTIMATE_EXT);
+
     rs_state.set_depth_clamp(VK_FALSE)
         .set_rasterizer_discard_enable(VK_FALSE)
         .set_polygon_mode(VK_POLYGON_MODE_FILL)
