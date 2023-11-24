@@ -23,7 +23,7 @@ bool Sample::init(int argc, const char* argv[])
     m_shadow_map->set_far_plane(8000.0f);
 
     // Voxelizer
-    m_voxelizer = std::make_unique<Voxelizer>(
+    m_voxelizer = std::make_unique<GeometryVoxelizer>(
         m_vk_backend,
         glm::vec3(-1963.12f, -160.925f, 1119.94f), 
         glm::vec3(1950.5f, 1543.24f, -1285.63f),
@@ -436,7 +436,7 @@ void Sample::revoxelize(int resolution)
 {
     /*vkDeviceWaitIdle(m_vk_backend->device());
     m_voxelizer.reset();*/
-    m_voxelizer = std::make_unique<Voxelizer>(
+    m_voxelizer = std::make_unique<GeometryVoxelizer>(
         m_vk_backend,
         glm::vec3(-1963.12f, -160.925f, 1119.94f),
         glm::vec3(1950.5f, 1543.24f, -1285.63f),
@@ -452,8 +452,9 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     ImGui::Checkbox("Voxelization Visualization", &m_voxelization_visualization_enabled);
 
-    if (ImGui::Checkbox("Voxelization wireframe", &m_voxelizer->m_voxelization_visualization_wireframe))
-        m_voxelizer->create_visualizer_graphics_pipeline_state(m_vk_backend);
+    /*if (ImGui::Checkbox("Voxelization wireframe", &m_voxelizer->m_voxelization_visualization_wireframe))
+        m_voxelizer->create_visualizer_graphics_pipeline_state(m_vk_backend);*/
+    ImGui::Checkbox("Voxelization wireframe", &m_voxelizer->m_voxelization_visualization_wireframe);
 
 
     static int group = 0;
@@ -477,25 +478,19 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         m_voxelizer->reset_voxel_grid(cmd_buf);
         m_voxelizer->reset_voxelization_image_memory_barrier_voxel_grid(cmd_buf);
 
-        // Voxelization
-        m_voxelizer->begin_render(cmd_buf, m_vk_backend);
-        render_objects(cmd_buf, m_voxelizer->m_pipeline_layout);
-        m_voxelizer->end_render(cmd_buf);
-        m_voxelizer->voxelization_visualization_image_memory_barrier_voxel_grid(cmd_buf);
+        m_voxelizer->begin_voxelization(cmd_buf, m_vk_backend);
+        if (m_voxelizer->m_voxelization_type == GEOMETRY_SHADER_VOXELIZATION)
+        {
+            GeometryVoxelizer* voxelization_ptr = dynamic_cast<GeometryVoxelizer*>(m_voxelizer.get());
+            render_objects(cmd_buf, voxelization_ptr->m_pipeline_layout);
+        }
+        m_voxelizer->end_voxelization(cmd_buf);
 
+        m_voxelizer->voxelization_visualization_image_memory_barrier_voxel_grid(cmd_buf);
         m_voxelizer->reset_instance_buffer(cmd_buf);
         m_voxelizer->reset_voxelization_buffer_memory_barrier_indirect(cmd_buf);
 
-        // Visualization
-        uint32_t dynamic_offset = m_voxelizer->m_ubo_size * m_vk_backend->current_frame_idx();
-        vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline->handle());
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 0, 1, &m_voxelizer->m_ds_image->handle(), 0, nullptr);
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 0, nullptr);
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 2, 1, &m_voxelizer->m_ds_indirect_buffer->handle(), 0, nullptr);
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 3, 1, &m_voxelizer->m_ds_data->handle(), 1, &dynamic_offset);
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_voxelizer->m_visualizer_compute_pipeline_layout->handle(), 4, 1, &m_voxelizer->m_ds_instance_color_buffer->handle(), 0, nullptr);
-        vkCmdDispatch(cmd_buf->handle(), m_voxelizer->get_work_groups_dim(), m_voxelizer->get_work_groups_dim(), m_voxelizer->get_work_groups_dim());
-
+        m_voxelizer->dispatch_visualization_compute_shader(m_vk_backend, cmd_buf);
         m_voxelizer->visualization_main_buffer_memory_barrier(cmd_buf);
 
         m_voxelizer->first_time = false;
@@ -506,11 +501,7 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     if (m_voxelization_visualization_enabled)
     {
-        uint32_t dynamic_offset_main      = m_voxelizer->m_visualizer_ubo_size * m_vk_backend->current_frame_idx();
         m_voxelizer->begin_render_visualizer(cmd_buf, m_vk_backend);
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 0, 1, &m_voxelizer->m_ds_visualizer_ubo->handle(), 1, &dynamic_offset_main);
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 1, 1, &m_voxelizer->m_ds_instance_buffer->handle(), 0, nullptr);
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_voxelizer->m_visualizer_graphics_pipeline_layout->handle(), 2, 1, &m_voxelizer->m_ds_instance_color_buffer->handle(), 0, nullptr);
         m_voxelizer->render_voxels(cmd_buf);
     }
     else
@@ -525,8 +516,8 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     AABB aabb = m_voxelizer->get_AABB();
     m_debug_draw.aabb(aabb.min, aabb.max, glm::vec3(1.0f, 1.0f, 1.0f));
-    m_debug_draw.frustum(m_voxelizer->get_proj(), m_voxelizer->get_view(), glm::vec3(1.0f, 0.0f, 0.0f));
-    m_debug_draw.sphere(10.0f, m_voxelizer->get_cam_pos(), glm::vec3(0.0f, 1.0f, 0.0f));
+    //m_debug_draw.frustum(m_voxelizer->get_proj(), m_voxelizer->get_view(), glm::vec3(1.0f, 0.0f, 0.0f));
+    //m_debug_draw.sphere(10.0f, m_voxelizer->get_cam_pos(), glm::vec3(0.0f, 1.0f, 0.0f));
     //m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_voxelizer->get_proj() * m_voxelizer->get_view(), m_voxelizer->get_cam_pos());
     m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
 

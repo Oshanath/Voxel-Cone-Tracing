@@ -13,7 +13,7 @@
 #include "ShadowMap.h"
 #include <debug_draw.h>
 #include "util.h"
-#include "Voxelizer.h"
+#include "GeometryVoxelizer.h"
 
 // Uniform buffer data structures.
 struct TransformsMain

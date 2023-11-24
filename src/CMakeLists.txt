@@ -20,12 +20,8 @@ set(VCT_RENDERER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/ShadowMap.cpp
     ${PROJECT_SOURCE_DIR}/src/Voxelizer.cpp
     ${PROJECT_SOURCE_DIR}/src/util.cpp
-
-    ${PROJECT_SOURCE_DIR}/include/VCTRenderer.h
-    ${PROJECT_SOURCE_DIR}/include/RendererObject.h
-    ${PROJECT_SOURCE_DIR}/include/ShadowMap.h
-    ${PROJECT_SOURCE_DIR}/include/util.h
-    ${PROJECT_SOURCE_DIR}/include/Voxelizer.h)
+    ${PROJECT_SOURCE_DIR}/src/ComputeVoxelizer.cpp
+    ${PROJECT_SOURCE_DIR}/src/GeometryVoxelizer.cpp)
 
 set(SHADER_SOURCES 
     ${PROJECT_SOURCE_DIR}/src/shader/mesh.vert 
