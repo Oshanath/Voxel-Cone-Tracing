@@ -25,10 +25,6 @@ GeometryVoxelizer::GeometryVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AAB
 
     create_descriptor_sets(backend);
     create_voxelization_pipeline_state(backend, vertex_input_state);
-    create_voxel_reset_compute_pipeline_state(backend);
-    create_reset_instance_compute_pipeline_state(backend);
-    create_visualizer_compute_pipeline_state(backend);
-    create_visualizer_graphics_pipeline_state(backend);
 }
 
 GeometryVoxelizer::~GeometryVoxelizer()
@@ -42,7 +38,7 @@ void GeometryVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelizerData));
     m_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-    m_ds_data                  = backend->allocate_descriptor_set(m_ds_layout_ubo);
+    m_ds_data                  = backend->allocate_descriptor_set(m_ds_layout_ubo_dynamic);
 
     // -------------------------------------------------------------------
 
@@ -153,9 +149,9 @@ void GeometryVoxelizer::create_voxelization_pipeline_state(dw::vk::Backend::Ptr 
     // Create shader modules
     // ---------------------------------------------------------------------------
 
-    dw::vk::ShaderModule::Ptr vs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel.vert.spv");
-    dw::vk::ShaderModule::Ptr fs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel.frag.spv");
-    dw::vk::ShaderModule::Ptr gs = dw::vk::ShaderModule::create_from_file(backend, "shaders/voxel.geom.spv");
+    dw::vk::ShaderModule::Ptr vs = dw::vk::ShaderModule::create_from_file(backend, "shaders/geometry_voxelizer.vert.spv");
+    dw::vk::ShaderModule::Ptr fs = dw::vk::ShaderModule::create_from_file(backend, "shaders/geometry_voxelizer.frag.spv");
+    dw::vk::ShaderModule::Ptr gs = dw::vk::ShaderModule::create_from_file(backend, "shaders/geometry_voxelizer.geom.spv");
 
     dw::vk::GraphicsPipeline::Desc pso_desc;
 
@@ -259,7 +255,7 @@ void GeometryVoxelizer::create_voxelization_pipeline_state(dw::vk::Backend::Ptr 
     dw::vk::PipelineLayout::Desc pl_desc;
 
     pl_desc.add_descriptor_set_layout(dw::Material::descriptor_set_layout())
-        .add_descriptor_set_layout(m_ds_layout_ubo)
+        .add_descriptor_set_layout(m_ds_layout_ubo_dynamic)
         .add_descriptor_set_layout(m_ds_layout_image);
     pl_desc.add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
 

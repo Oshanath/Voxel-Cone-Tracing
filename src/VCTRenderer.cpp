@@ -8,6 +8,7 @@ bool Sample::init(int argc, const char* argv[])
         return false;
 
     // Load mesh.
+    RenderObject::initialize_common_resources(m_vk_backend);
     if (!load_objects())
         return false;
 
@@ -23,7 +24,7 @@ bool Sample::init(int argc, const char* argv[])
     m_shadow_map->set_far_plane(8000.0f);
 
     // Voxelizer
-    m_voxelizer = std::make_unique<GeometryVoxelizer>(
+    m_voxelizer = std::make_unique<ComputeVoxelizer>(
         m_vk_backend,
         glm::vec3(-1963.12f, -160.925f, 1119.94f), 
         glm::vec3(1950.5f, 1543.24f, -1285.63f),
@@ -332,7 +333,7 @@ void Sample::create_main_pipeline_state()
 bool Sample::load_object(std::string filename)
 {
     m_meshes.push_back(dw::Mesh::load(m_vk_backend, filename));
-    objects.push_back(RenderObject(m_meshes[m_meshes.size() - 1]));
+    objects.push_back(RenderObject(m_meshes[m_meshes.size() - 1], m_vk_backend));
     return m_meshes[m_meshes.size() - 1] != nullptr;
 }
 
@@ -365,8 +366,6 @@ void Sample::render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Pipeline
 
         vkCmdBindVertexBuffers(cmd_buf->handle(), 0, 1, &mesh->vertex_buffer()->handle(), &offset);
         vkCmdBindIndexBuffer(cmd_buf->handle(), mesh->index_buffer()->handle(), 0, VK_INDEX_TYPE_UINT32);
-
-        // push constant
 
         const auto& submeshes = mesh->sub_meshes();
 
@@ -479,11 +478,18 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         m_voxelizer->reset_voxelization_image_memory_barrier_voxel_grid(cmd_buf);
 
         m_voxelizer->begin_voxelization(cmd_buf, m_vk_backend);
+
         if (m_voxelizer->m_voxelization_type == GEOMETRY_SHADER_VOXELIZATION)
         {
             GeometryVoxelizer* voxelization_ptr = dynamic_cast<GeometryVoxelizer*>(m_voxelizer.get());
             render_objects(cmd_buf, voxelization_ptr->m_pipeline_layout);
         }
+        else if (m_voxelizer->m_voxelization_type == COMPUTE_SHADER_VOXELIZATION)
+        {
+            ComputeVoxelizer* voxelization_ptr = dynamic_cast<ComputeVoxelizer*>(m_voxelizer.get());
+            voxelization_ptr->voxelize(cmd_buf, m_vk_backend, objects);
+        }
+
         m_voxelizer->end_voxelization(cmd_buf);
 
         m_voxelizer->voxelization_visualization_image_memory_barrier_voxel_grid(cmd_buf);

@@ -14,16 +14,17 @@
 #include <debug_draw.h>
 #include "util.h"
 #include "GeometryVoxelizer.h"
+#include "ComputeVoxelizer.h"
 
 // Uniform buffer data structures.
 struct TransformsMain
 {
     DW_ALIGNED(16)
-    glm::mat4 view;
+        glm::mat4 view;
     DW_ALIGNED(16)
-    glm::mat4 projection;
+        glm::mat4 projection;
     DW_ALIGNED(16)
-    glm::mat4 lightSpaceMatrix;
+        glm::mat4 lightSpaceMatrix;
 };
 
 struct Light

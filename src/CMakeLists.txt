@@ -21,16 +21,18 @@ set(VCT_RENDERER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/Voxelizer.cpp
     ${PROJECT_SOURCE_DIR}/src/util.cpp
     ${PROJECT_SOURCE_DIR}/src/ComputeVoxelizer.cpp
-    ${PROJECT_SOURCE_DIR}/src/GeometryVoxelizer.cpp)
+    ${PROJECT_SOURCE_DIR}/src/GeometryVoxelizer.cpp
+    ${PROJECT_SOURCE_DIR}/src/RendererObject.cpp)
 
 set(SHADER_SOURCES 
     ${PROJECT_SOURCE_DIR}/src/shader/mesh.vert 
     ${PROJECT_SOURCE_DIR}/src/shader/mesh.frag
     ${PROJECT_SOURCE_DIR}/src/shader/shadow.vert 
     ${PROJECT_SOURCE_DIR}/src/shader/shadow.frag
-    ${PROJECT_SOURCE_DIR}/src/shader/voxel.vert
-    ${PROJECT_SOURCE_DIR}/src/shader/voxel.geom
-    ${PROJECT_SOURCE_DIR}/src/shader/voxel.frag
+    ${PROJECT_SOURCE_DIR}/src/shader/geometry_voxelizer/geometry_voxelizer.vert
+    ${PROJECT_SOURCE_DIR}/src/shader/geometry_voxelizer/geometry_voxelizer.geom
+    ${PROJECT_SOURCE_DIR}/src/shader/geometry_voxelizer/geometry_voxelizer.frag
+    ${PROJECT_SOURCE_DIR}/src/shader/compute_voxelizer.comp
     ${PROJECT_SOURCE_DIR}/src/shader/reset.comp
     ${PROJECT_SOURCE_DIR}/src/shader/reset_instance.comp
     ${PROJECT_SOURCE_DIR}/src/shader/voxel_vis.comp

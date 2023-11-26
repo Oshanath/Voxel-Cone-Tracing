@@ -1,0 +1,48 @@
+#version 450
+
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+struct Vertex {
+    vec4 position;
+    vec4 texcoord;
+    vec4 normal;
+    vec4 tangent;
+    vec4 bitangent;
+};
+
+layout(set = 0, binding = 0, rgba8) uniform image3D voxelTexture;
+
+layout (set = 1, binding = 0) uniform VoxelGridUBO 
+{	
+	vec4 aabb_min;
+	vec4 aabb_max;
+} voxel_grid;
+
+layout (set = 2, binding = 0) uniform ViewProjUBO 
+{	
+	mat4 view;
+	mat4 proj;
+} view_proj;
+
+layout (set = 3, binding = 0) uniform sampler2D s_Diffuse;
+layout (set = 3, binding = 1) uniform sampler2D s_Normal;
+layout (set = 3, binding = 2) uniform sampler2D s_Metallic;
+layout (set = 3, binding = 3) uniform sampler2D s_Roughness;
+
+layout(set = 4, binding = 0) buffer VertexBuffer {
+    Vertex vertices[];
+};
+
+layout(set = 4, binding = 1) buffer IndexBuffer {
+    uint indices[];
+};
+
+layout( push_constant ) uniform constants
+{
+	mat4 model;
+} pc;
+
+void main()
+{
+    
+}

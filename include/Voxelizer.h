@@ -38,6 +38,22 @@ struct VoxelizerData
 		glm::vec4 AABB_max;
 };
 
+struct ViewProjUBO
+{
+	DW_ALIGNED(16)
+		glm::mat4 view;
+	DW_ALIGNED(16)
+		glm::mat4 projection;
+};
+
+struct VoxelGridData
+{
+	DW_ALIGNED(16)
+		glm::vec4 AABB_min;
+	DW_ALIGNED(16)
+		glm::vec4 AABB_max;
+};
+
 enum VoxelizationType
 {
 	GEOMETRY_SHADER_VOXELIZATION,
@@ -71,12 +87,20 @@ public:
 
 	size_t							 m_visualizer_ubo_size;
 	dw::vk::Buffer::Ptr				 m_visualizer_ubo_data;
-	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo;
+	size_t						     m_voxel_grid_ubo_size;
+	dw::vk::Buffer::Ptr				 m_voxel_grid_ubo_data;
+	size_t						     m_view_proj_ubo_size;
+	dw::vk::Buffer::Ptr				 m_view_proj_ubo_data;
+	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo_static;
+	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo_dynamic;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_instance_buffer;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_instance_color_buffer;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_indirect_buffer;
 	dw::vk::DescriptorSet::Ptr       m_ds_visualizer_ubo;
+	dw::vk::DescriptorSet::Ptr       m_ds_voxel_grid_ubo;
+	dw::vk::DescriptorSet::Ptr       m_ds_view_proj_ubo;
 	VisualizerUBO					 m_visualizer_transforms;
+	ViewProjUBO						 m_view_proj;
 	RenderObject					 m_cube;
 
 	const VoxelizationType m_voxelization_type;
@@ -135,6 +159,5 @@ private:
 	dw::vk::DescriptorSet::Ptr       m_ds_indirect_buffer;
 
 	void create_descriptor_sets(dw::vk::Backend::Ptr backend);
-	void create_pipelines(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state);
 
 };

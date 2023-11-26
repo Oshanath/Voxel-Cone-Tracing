@@ -7,7 +7,7 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     m_length(get_length(AABB_min, AABB_max)),
     m_center((AABB_min + AABB_max) / 2.0f),
     m_voxel_width(m_length / m_voxels_per_side),
-    m_cube(RenderObject(dw::Mesh::load(backend, "cube.obj"))),
+    m_cube(RenderObject(dw::Mesh::load(backend, "cube.obj"), backend)),
     m_voxelization_type(voxelization_type),
     m_viewport_width(viewport_width),
     m_viewport_height(viewport_height)
@@ -29,6 +29,11 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
 
     float cos45  = glm::cos(glm::radians(45.0f));
     m_cube.scale = m_voxel_width;
+
+    create_voxel_reset_compute_pipeline_state(backend);
+    create_reset_instance_compute_pipeline_state(backend);
+    create_visualizer_compute_pipeline_state(backend);
+    create_visualizer_graphics_pipeline_state(backend);
 }
 
 Voxelizer::~Voxelizer()
@@ -41,7 +46,7 @@ Voxelizer::~Voxelizer()
     m_ds_data.reset();
     m_ds_image.reset();
     m_ds_layout_image.reset();
-    m_ds_layout_ubo.reset();
+    m_ds_layout_ubo_dynamic.reset();
 }
 
 float Voxelizer::get_length(glm::vec3 AABB_min, glm::vec3 AABB_max) const
@@ -68,13 +73,23 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_visualizer_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelizerData));
     m_visualizer_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_visualizer_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
+    m_voxel_grid_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelGridData));
+    m_voxel_grid_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_voxel_grid_ubo_size, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    m_view_proj_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(ViewProjUBO));
+    m_view_proj_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_view_proj_ubo_size, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     dw::vk::DescriptorSetLayout::Desc desc;
 
     DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
-    m_ds_layout_ubo = dw::vk::DescriptorSetLayout::create(backend, desc);
-    m_ds_layout_ubo->set_name("Voxelizer::m_ds_layout_ubo");
+    m_ds_layout_ubo_dynamic = dw::vk::DescriptorSetLayout::create(backend, desc);
+    m_ds_layout_ubo_dynamic->set_name("Voxelizer::m_ds_layout_ubo");
+
+    DW_ZERO_MEMORY(desc);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
+    m_ds_layout_ubo_static = dw::vk::DescriptorSetLayout::create(backend, desc);
+    m_ds_layout_ubo_static->set_name("Voxelizer::m_ds_layout_ubo");
 
     DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
@@ -100,7 +115,9 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ds_instance_color_buffer = backend->allocate_descriptor_set(m_ds_layout_instance_color_buffer);
     m_ds_instance_buffer       = backend->allocate_descriptor_set(m_ds_layout_instance_buffer);
     m_ds_indirect_buffer       = backend->allocate_descriptor_set(m_ds_layout_indirect_buffer);
-    m_ds_visualizer_ubo        = backend->allocate_descriptor_set(m_ds_layout_ubo);
+    m_ds_visualizer_ubo        = backend->allocate_descriptor_set(m_ds_layout_ubo_dynamic);
+    m_ds_voxel_grid_ubo        = backend->allocate_descriptor_set(m_ds_layout_ubo_static);
+    m_ds_view_proj_ubo         = backend->allocate_descriptor_set(m_ds_layout_ubo_static);
 
     VkWriteDescriptorSet  write_data;
     VkDescriptorImageInfo image_info;
@@ -136,6 +153,40 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     write_data.pBufferInfo     = &buffer_info;
     write_data.dstBinding      = 0;
     write_data.dstSet          = m_ds_visualizer_ubo->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+
+    // Voxel Grid data UBO
+    DW_ZERO_MEMORY(buffer_info);
+    DW_ZERO_MEMORY(write_data);
+
+    buffer_info.buffer = m_voxel_grid_ubo_data->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = sizeof(VoxelGridData);
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_data.pBufferInfo     = &buffer_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_voxel_grid_ubo->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+
+    // View projection data UBO
+    DW_ZERO_MEMORY(buffer_info);
+    DW_ZERO_MEMORY(write_data);
+
+    buffer_info.buffer = m_view_proj_ubo_data->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = sizeof(ViewProjUBO);
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_data.pBufferInfo     = &buffer_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_view_proj_ubo->handle();
 
     vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
 
@@ -189,11 +240,6 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     write_data.dstSet          = m_ds_indirect_buffer->handle();
 
     vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
-}
-
-void Voxelizer::create_pipelines(dw::vk::Backend::Ptr backend, const dw::vk::VertexInputStateDesc& vertex_input_state)
-{
-
 }
 
 void Voxelizer::transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
@@ -377,7 +423,7 @@ void Voxelizer::create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr ba
     pl_desc.add_descriptor_set_layout(m_ds_layout_image)
         .add_descriptor_set_layout(m_ds_layout_instance_buffer)
         .add_descriptor_set_layout(m_ds_layout_indirect_buffer)
-        .add_descriptor_set_layout(m_ds_layout_ubo)
+        .add_descriptor_set_layout(m_ds_layout_ubo_dynamic)
         .add_descriptor_set_layout(m_ds_layout_instance_color_buffer);
     m_visualizer_compute_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
     m_visualizer_compute_pipeline_layout->set_name("Voxelizer::m_visualizer_compute_pipeline_layout");
@@ -498,7 +544,7 @@ void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr b
 
     dw::vk::PipelineLayout::Desc pl_desc;
 
-    pl_desc.add_descriptor_set_layout(m_ds_layout_ubo)
+    pl_desc.add_descriptor_set_layout(m_ds_layout_ubo_dynamic)
         .add_descriptor_set_layout(m_ds_layout_instance_buffer)
         .add_descriptor_set_layout(m_ds_layout_instance_color_buffer);
 
