@@ -41,9 +41,10 @@ struct Lights
 	Light lights[1];
 };
 
-class Sample : public dw::Application
+class VCTRenderer : public dw::Application
 {
 protected:
+    void create_voxelizer(int resolution);
     bool init(int argc, const char* argv[]) override;
     void update(double delta) override;
     void shutdown() override;

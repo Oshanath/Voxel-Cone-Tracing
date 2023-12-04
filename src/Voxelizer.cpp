@@ -84,12 +84,12 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
     m_ds_layout_ubo_dynamic = dw::vk::DescriptorSetLayout::create(backend, desc);
-    m_ds_layout_ubo_dynamic->set_name("Voxelizer::m_ds_layout_ubo");
+    m_ds_layout_ubo_dynamic->set_name("Voxelizer::m_ds_layout_ubo_dynamic");
 
     DW_ZERO_MEMORY(desc);
-    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
     m_ds_layout_ubo_static = dw::vk::DescriptorSetLayout::create(backend, desc);
-    m_ds_layout_ubo_static->set_name("Voxelizer::m_ds_layout_ubo");
+    m_ds_layout_ubo_static->set_name("Voxelizer::m_ds_layout_ubo_static");
 
     DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
@@ -111,18 +111,20 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ds_layout_indirect_buffer = dw::vk::DescriptorSetLayout::create(backend, desc);
     m_ds_layout_indirect_buffer->set_name("Voxelizer::m_ds_layout_indirect_buffer");
 
-    m_ds_image = backend->allocate_descriptor_set(m_ds_layout_image);
+    m_ds_image                 = backend->allocate_descriptor_set(m_ds_layout_image);
     m_ds_instance_color_buffer = backend->allocate_descriptor_set(m_ds_layout_instance_color_buffer);
     m_ds_instance_buffer       = backend->allocate_descriptor_set(m_ds_layout_instance_buffer);
     m_ds_indirect_buffer       = backend->allocate_descriptor_set(m_ds_layout_indirect_buffer);
     m_ds_visualizer_ubo        = backend->allocate_descriptor_set(m_ds_layout_ubo_dynamic);
     m_ds_voxel_grid_ubo        = backend->allocate_descriptor_set(m_ds_layout_ubo_static);
-    m_ds_view_proj_ubo         = backend->allocate_descriptor_set(m_ds_layout_ubo_static);
+    m_ds_view_proj_ubo         = backend->allocate_descriptor_set(m_ds_layout_ubo_dynamic);
+    m_ds_data                  = backend->allocate_descriptor_set(m_ds_layout_ubo_dynamic);
 
     VkWriteDescriptorSet  write_data;
     VkDescriptorImageInfo image_info;
     VkDescriptorBufferInfo buffer_info;
 
+    // Voxel Grid
     DW_ZERO_MEMORY(write_data);
     DW_ZERO_MEMORY(image_info);
 
@@ -183,7 +185,7 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
 
     write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write_data.descriptorCount = 1;
-    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     write_data.pBufferInfo     = &buffer_info;
     write_data.dstBinding      = 0;
     write_data.dstSet          = m_ds_view_proj_ubo->handle();

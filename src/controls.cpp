@@ -3,7 +3,7 @@
 float x_angle = 0.00001f;
 float y_angle = 0.00001f;
 
-void Sample::key_pressed(int code)
+void VCTRenderer::key_pressed(int code)
 {
     // Handle forward movement.
     if (code == GLFW_KEY_W)
@@ -55,7 +55,7 @@ void Sample::key_pressed(int code)
     m_shadow_map->set_direction(m_lights.lights[0].direction);
 }
 
-void Sample::key_released(int code)
+void VCTRenderer::key_released(int code)
 {
     // Handle forward movement.
     if (code == GLFW_KEY_W || code == GLFW_KEY_S)
@@ -70,7 +70,7 @@ void Sample::key_released(int code)
         m_climbing_speed = 0.0f;
 }
 
-void Sample::mouse_pressed(int code)
+void VCTRenderer::mouse_pressed(int code)
 {
     // Enable mouse look.
     if (code == GLFW_MOUSE_BUTTON_RIGHT)
@@ -80,7 +80,7 @@ void Sample::mouse_pressed(int code)
     }
 }
 
-void Sample::mouse_released(int code)
+void VCTRenderer::mouse_released(int code)
 {
     // Disable mouse look.
     if (code == GLFW_MOUSE_BUTTON_RIGHT)

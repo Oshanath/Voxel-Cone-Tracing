@@ -38,8 +38,6 @@ void GeometryVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelizerData));
     m_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-    m_ds_data                  = backend->allocate_descriptor_set(m_ds_layout_ubo_dynamic);
-
     // -------------------------------------------------------------------
 
     VkDescriptorBufferInfo buffer_info;

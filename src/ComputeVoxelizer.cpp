@@ -15,7 +15,7 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
 
     dw::vk::PipelineLayout::Desc pl_desc;
     pl_desc.add_descriptor_set_layout(m_ds_layout_image)
-        .add_descriptor_set_layout(m_ds_layout_ubo_dynamic)
+        .add_descriptor_set_layout(m_ds_layout_ubo_static)
         .add_descriptor_set_layout(m_ds_layout_ubo_dynamic)
         .add_descriptor_set_layout(dw::Material::descriptor_set_layout())
         .add_descriptor_set_layout(RenderObject::get_ds_layout_vertex_index());
@@ -35,10 +35,12 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
 
 void ComputeVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
 {
+    uint32_t offset = 0;
+
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 0, 1, &m_ds_image->handle(), 0, 0);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 1, 1, &m_ds_voxel_grid_ubo->handle(), 0, 0);
-    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 2, 1, &m_ds_view_proj_ubo->handle(), 0, 0);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 2, 1, &m_ds_view_proj_ubo->handle(), 1, &offset);
 }
 
 void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects)

@@ -1,7 +1,19 @@
 #include "VCTRenderer.h"
 #include <array>
 
-bool Sample::init(int argc, const char* argv[])
+void VCTRenderer::create_voxelizer(int resolution)
+{
+    m_voxelizer = std::make_unique<ComputeVoxelizer>(
+        m_vk_backend,
+        glm::vec3(-1963.12f, -160.925f, 1119.94f),
+        glm::vec3(1950.5f, 1543.24f, -1285.63f),
+        resolution,
+        m_meshes[0]->vertex_input_state_desc(),
+        m_width,
+        m_height);
+}
+
+bool VCTRenderer::init(int argc, const char* argv[])
 {
     // Create Uniform buffers
     if (!create_uniform_buffers())
@@ -23,15 +35,7 @@ bool Sample::init(int argc, const char* argv[])
     m_shadow_map->set_near_plane(1.0f);
     m_shadow_map->set_far_plane(8000.0f);
 
-    // Voxelizer
-    m_voxelizer = std::make_unique<ComputeVoxelizer>(
-        m_vk_backend,
-        glm::vec3(-1963.12f, -160.925f, 1119.94f), 
-        glm::vec3(1950.5f, 1543.24f, -1285.63f),
-        64,
-        m_meshes[0]->vertex_input_state_desc(),
-        m_width,
-        m_height);
+    create_voxelizer(64);
 
     create_descriptor_sets();
     write_descriptor_sets();
@@ -60,7 +64,7 @@ bool Sample::init(int argc, const char* argv[])
     return true;
 }
 
-void Sample::update(double delta)
+void VCTRenderer::update(double delta)
 {
     dw::vk::CommandBuffer::Ptr cmd_buf = m_vk_backend->allocate_graphics_command_buffer();
 
@@ -87,7 +91,7 @@ void Sample::update(double delta)
     submit_and_present({ cmd_buf });
 }
 
-void Sample::shutdown()
+void VCTRenderer::shutdown()
 {
     for (auto& mesh : m_meshes)
         mesh.reset();
@@ -107,7 +111,7 @@ void Sample::shutdown()
     m_debug_draw.shutdown();
 }
 
-dw::AppSettings Sample::intial_app_settings()
+dw::AppSettings VCTRenderer::intial_app_settings()
 {
     // Set custom settings here...
     dw::AppSettings settings;
@@ -121,13 +125,13 @@ dw::AppSettings Sample::intial_app_settings()
     return settings;
 }
 
-inline void Sample::window_resized(int width, int height)
+inline void VCTRenderer::window_resized(int width, int height)
 {
     // Override window resized method to update camera projection.
     m_main_camera->update_projection(60.0f, 0.1f, m_far, float(m_width) / float(m_height));
 }
 
-bool Sample::create_uniform_buffers()
+bool VCTRenderer::create_uniform_buffers()
 {
     m_ubo_size_main         = m_vk_backend->aligned_dynamic_ubo_size(sizeof(TransformsMain));
     m_ubo_size_lights       = m_vk_backend->aligned_dynamic_ubo_size(sizeof(Lights));
@@ -138,7 +142,7 @@ bool Sample::create_uniform_buffers()
     return true;
 }
 
-void Sample::create_descriptor_set_layouts()
+void VCTRenderer::create_descriptor_set_layouts()
 {
     // main 
     dw::vk::DescriptorSetLayout::Desc desc;
@@ -147,7 +151,7 @@ void Sample::create_descriptor_set_layouts()
     m_ds_layout_ubo->set_name("Main::ds_layout_ubo");
 }
 
-inline void Sample::create_descriptor_sets()
+inline void VCTRenderer::create_descriptor_sets()
 {
     m_ds_transforms_main   = m_vk_backend->allocate_descriptor_set(m_ds_layout_ubo);
     m_ds_transforms_main->set_name("Main::ds_transforms_main");
@@ -156,7 +160,7 @@ inline void Sample::create_descriptor_sets()
     m_ds_lights->set_name("Main::ds_lights");
 }
 
-void Sample::write_descriptor_sets()
+void VCTRenderer::write_descriptor_sets()
 {
     // main uniform buffer
     VkDescriptorBufferInfo buffer_info;
@@ -195,7 +199,7 @@ void Sample::write_descriptor_sets()
     vkUpdateDescriptorSets(m_vk_backend->device(), 1, &write_data, 0, nullptr);
 }
 
-void Sample::create_main_pipeline_state()
+void VCTRenderer::create_main_pipeline_state()
 {
     // ---------------------------------------------------------------------------
     // Create shader modules
@@ -330,14 +334,14 @@ void Sample::create_main_pipeline_state()
     m_graphics_pipeline_main->set_name("Main::graphics_pipeline_main");
 }
 
-bool Sample::load_object(std::string filename)
+bool VCTRenderer::load_object(std::string filename)
 {
     m_meshes.push_back(dw::Mesh::load(m_vk_backend, filename));
     objects.push_back(RenderObject(m_meshes[m_meshes.size() - 1], m_vk_backend));
     return m_meshes[m_meshes.size() - 1] != nullptr;
 }
 
-bool Sample::load_objects()
+bool VCTRenderer::load_objects()
 {
     std::vector<bool> results;
     results.push_back(load_object("sponza.obj"));
@@ -350,13 +354,13 @@ bool Sample::load_objects()
     return true;
 }
 
-inline void Sample::create_camera()
+inline void VCTRenderer::create_camera()
 {
     m_main_camera = std::make_unique<dw::Camera>(
         60.0f, 0.1f, m_far, float(m_width) / float(m_height), glm::vec3(0.0f, 0.0f, 100.0f), glm::vec3(0.0f, 0.0, -1.0f));
 }
 
-void Sample::render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout)
+void VCTRenderer::render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout)
 {
     VkDeviceSize offset = 0;
 
@@ -383,7 +387,7 @@ void Sample::render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Pipeline
     }
 }
 
-void Sample::begin_render_main(dw::vk::CommandBuffer::Ptr cmd_buf)
+void VCTRenderer::begin_render_main(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     VkClearValue clear_values[2];
 
@@ -431,21 +435,14 @@ void Sample::begin_render_main(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdSetScissor(cmd_buf->handle(), 0, 1, &scissor_rect);
 }
 
-void Sample::revoxelize(int resolution)
+void VCTRenderer::revoxelize(int resolution)
 {
     /*vkDeviceWaitIdle(m_vk_backend->device());
     m_voxelizer.reset();*/
-    m_voxelizer = std::make_unique<GeometryVoxelizer>(
-        m_vk_backend,
-        glm::vec3(-1963.12f, -160.925f, 1119.94f),
-        glm::vec3(1950.5f, 1543.24f, -1285.63f),
-        resolution,
-        m_meshes[0]->vertex_input_state_desc(),
-        m_width,
-        m_height);
+    create_voxelizer(resolution);
 }
 
-void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
+void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     DW_SCOPED_SAMPLE("render", cmd_buf);
 
@@ -531,7 +528,7 @@ void Sample::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdEndRenderPass(cmd_buf->handle());
 }
 
-void Sample::update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf)
+void VCTRenderer::update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     DW_SCOPED_SAMPLE("update_uniforms", cmd_buf);
 
@@ -557,7 +554,7 @@ void Sample::update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf)
     memcpy(ptr + m_ubo_size_lights * m_vk_backend->current_frame_idx(), &m_lights, sizeof(Lights));
 }
 
-void Sample::update_camera()
+void VCTRenderer::update_camera()
 {
     dw::Camera* current = m_main_camera.get();
 
@@ -589,4 +586,4 @@ void Sample::update_camera()
     current->update();
 }
 
-DW_DECLARE_MAIN(Sample)
+DW_DECLARE_MAIN(VCTRenderer)

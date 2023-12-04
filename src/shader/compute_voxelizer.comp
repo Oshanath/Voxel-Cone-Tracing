@@ -44,5 +44,6 @@ layout( push_constant ) uniform constants
 
 void main()
 {
-    
+    ivec3 coord = ivec3(0, 0, 0);
+    imageStore(voxelTexture, coord, vec4(1.0, 0.0, 1.0, 1.0));
 }
