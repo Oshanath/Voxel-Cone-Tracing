@@ -478,11 +478,13 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
         if (m_voxelizer->m_voxelization_type == GEOMETRY_SHADER_VOXELIZATION)
         {
+            std::cout << "Voxelizing with geometry shader\n";
             GeometryVoxelizer* voxelization_ptr = dynamic_cast<GeometryVoxelizer*>(m_voxelizer.get());
             render_objects(cmd_buf, voxelization_ptr->m_pipeline_layout);
         }
         else if (m_voxelizer->m_voxelization_type == COMPUTE_SHADER_VOXELIZATION)
         {
+            std::cout << "Voxelizing with compute shader\n";
             ComputeVoxelizer* voxelization_ptr = dynamic_cast<ComputeVoxelizer*>(m_voxelizer.get());
             voxelization_ptr->voxelize(cmd_buf, m_vk_backend, objects);
         }

@@ -35,30 +35,11 @@ GeometryVoxelizer::~GeometryVoxelizer()
 
 void GeometryVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
 {
-    m_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelizerData));
-    m_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
-
+    
     // -------------------------------------------------------------------
 
     VkDescriptorBufferInfo buffer_info;
     VkWriteDescriptorSet   write_data;
-
-    // UBO Transforms
-    DW_ZERO_MEMORY(buffer_info);
-    DW_ZERO_MEMORY(write_data);
-
-    buffer_info.buffer = m_ubo_data->handle();
-    buffer_info.offset = 0;
-    buffer_info.range  = sizeof(VoxelizerData);
-
-    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_data.descriptorCount = 1;
-    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    write_data.pBufferInfo     = &buffer_info;
-    write_data.dstBinding      = 0;
-    write_data.dstSet          = m_ds_data->handle();
-
-    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
 }
 
 glm::vec3 GeometryVoxelizer::get_center() const
@@ -275,4 +256,6 @@ void GeometryVoxelizer::create_voxelization_pipeline_state(dw::vk::Backend::Ptr 
     pso_desc.set_render_pass(m_render_pass);
 
     m_pipeline = dw::vk::GraphicsPipeline::create(backend, pso_desc);
+    m_pipeline->set_name("Geometry Voxelizer Pipeline");
+    m_pipeline_layout->set_name("Geometry Voxelizer Pipeline Layout");
 }

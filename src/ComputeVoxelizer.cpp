@@ -3,7 +3,7 @@
 ComputeVoxelizer::ComputeVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height) :
     Voxelizer(backend, AABB_min, AABB_max, voxels_per_side, vertex_input_state, COMPUTE_SHADER_VOXELIZATION, m_viewport_width, m_viewport_height)
 {
-    create_descriptor_sets(backend);
+    //create_descriptor_sets(backend);
     create_voxelizer_pipeline_state(backend);
 }
 
@@ -28,10 +28,10 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
     m_pipeline->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline");
 }
 
-void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
-{
-    
-}
+//void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
+//{
+//    
+//}
 
 void ComputeVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
 {

@@ -1,4 +1,5 @@
 #include "Voxelizer.h"
+#include <iostream>
 
 Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, VoxelizationType voxelization_type, uint32_t viewport_width, uint32_t viewport_height) :
     m_AABB_min(AABB_min), 
@@ -60,6 +61,7 @@ float Voxelizer::get_length(glm::vec3 AABB_min, glm::vec3 AABB_max) const
 
 void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
 {
+    std::cout << "creating descriptor sets in parent class\n";
 
     m_instance_buffer_size = sizeof(InstanceData) * m_voxels_per_side * m_voxels_per_side * m_voxels_per_side;
     m_instance_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_instance_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
@@ -78,6 +80,9 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
 
     m_view_proj_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(ViewProjUBO));
     m_view_proj_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_view_proj_ubo_size, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    m_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelizerData));
+    m_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     dw::vk::DescriptorSetLayout::Desc desc;
 
@@ -119,6 +124,15 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ds_voxel_grid_ubo        = backend->allocate_descriptor_set(m_ds_layout_ubo_static);
     m_ds_view_proj_ubo         = backend->allocate_descriptor_set(m_ds_layout_ubo_dynamic);
     m_ds_data                  = backend->allocate_descriptor_set(m_ds_layout_ubo_dynamic);
+
+    m_ds_image->set_name("Voxelizer::m_ds_image");
+    m_ds_instance_color_buffer->set_name("Voxelizer::m_ds_instance_color_buffer");
+    m_ds_instance_buffer->set_name("Voxelizer::m_ds_instance_buffer");
+    m_ds_indirect_buffer->set_name("Voxelizer::m_ds_indirect_buffer");
+    m_ds_visualizer_ubo->set_name("Voxelizer::m_ds_visualizer_ubo");
+    m_ds_voxel_grid_ubo->set_name("Voxelizer::m_ds_voxel_grid_ubo");
+    m_ds_view_proj_ubo->set_name("Voxelizer::m_ds_view_proj_ubo");
+    m_ds_data->set_name("Voxelizer::m_ds_data");
 
     VkWriteDescriptorSet  write_data;
     VkDescriptorImageInfo image_info;
@@ -240,6 +254,23 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     write_data.pBufferInfo     = &buffer_info;
     write_data.dstBinding      = 0;
     write_data.dstSet          = m_ds_indirect_buffer->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+
+    // UBO Transforms
+    DW_ZERO_MEMORY(buffer_info);
+    DW_ZERO_MEMORY(write_data);
+
+    buffer_info.buffer = m_ubo_data->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = sizeof(VoxelizerData);
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    write_data.pBufferInfo     = &buffer_info;
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_data->handle();
 
     vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
 }
