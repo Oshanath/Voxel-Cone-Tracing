@@ -46,14 +46,6 @@ struct ViewProjUBO
 		glm::mat4 projection;
 };
 
-struct VoxelGridData
-{
-	DW_ALIGNED(16)
-		glm::vec4 AABB_min;
-	DW_ALIGNED(16)
-		glm::vec4 AABB_max;
-};
-
 enum VoxelizationType
 {
 	GEOMETRY_SHADER_VOXELIZATION,
@@ -87,10 +79,9 @@ public:
 
 	size_t							 m_visualizer_ubo_size;
 	dw::vk::Buffer::Ptr				 m_visualizer_ubo_data;
-	size_t						     m_voxel_grid_ubo_size;
-	dw::vk::Buffer::Ptr				 m_voxel_grid_ubo_data;
 	size_t						     m_view_proj_ubo_size;
 	dw::vk::Buffer::Ptr				 m_view_proj_ubo_data;
+
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo_static;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo_dynamic;
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_instance_buffer;
@@ -99,6 +90,7 @@ public:
 	dw::vk::DescriptorSet::Ptr       m_ds_visualizer_ubo;
 	dw::vk::DescriptorSet::Ptr       m_ds_voxel_grid_ubo;
 	dw::vk::DescriptorSet::Ptr       m_ds_view_proj_ubo;
+
 	VisualizerUBO					 m_visualizer_transforms;
 	ViewProjUBO						 m_view_proj;
 	RenderObject					 m_cube;

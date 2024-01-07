@@ -44,6 +44,10 @@ layout( push_constant ) uniform constants
 
 void main()
 {
-    ivec3 coord = ivec3(0, 0, 0);
-    imageStore(voxelTexture, coord, vec4(1.0, 0.0, 1.0, 1.0));
+    imageStore(voxelTexture, ivec3(63, 1, 31), vec4(1.0, 0.0, 1.0, 1.0));
+    imageStore(voxelTexture, ivec3(63, 2, 31), vec4(1.0, 0.0, 1.0, 1.0));
+    imageStore(voxelTexture, ivec3(63, 3, 31), vec4(1.0, 0.0, 1.0, 1.0));
+    imageStore(voxelTexture, ivec3(63, 5, 31), vec4(1.0, 0.0, 1.0, 1.0));
+    imageStore(voxelTexture, ivec3(63, 6, 31), vec4(1.0, 0.0, 1.0, 1.0));
+    
 }

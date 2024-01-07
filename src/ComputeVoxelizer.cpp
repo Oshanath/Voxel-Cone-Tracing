@@ -3,7 +3,7 @@
 ComputeVoxelizer::ComputeVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height) :
     Voxelizer(backend, AABB_min, AABB_max, voxels_per_side, vertex_input_state, COMPUTE_SHADER_VOXELIZATION, m_viewport_width, m_viewport_height)
 {
-    //create_descriptor_sets(backend);
+    create_descriptor_sets(backend);
     create_voxelizer_pipeline_state(backend);
 }
 
@@ -28,13 +28,20 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
     m_pipeline->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline");
 }
 
-//void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
-//{
-//    
-//}
+void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
+{
+    
+}
 
 void ComputeVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
 {
+    AABB aabb       = get_AABB();
+    m_data.AABB_min = glm::vec4(aabb.min, 1.0f);
+    m_data.AABB_max = glm::vec4(aabb.max, 1.0f);
+
+    uint8_t* ptr = (uint8_t*)m_ubo_data->mapped_ptr();
+    memcpy(ptr + m_ubo_size * backend->current_frame_idx(), &m_data, sizeof(VoxelizerData));
+
     uint32_t offset = 0;
 
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline->handle());

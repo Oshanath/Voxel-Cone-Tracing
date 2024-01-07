@@ -16,6 +16,8 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     m_image      = dw::vk::Image::create(backend, VK_IMAGE_TYPE_3D, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VMA_MEMORY_USAGE_GPU_ONLY, VK_IMAGE_USAGE_STORAGE_BIT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED);
     m_image_view = dw::vk::ImageView::create(backend, m_image, VK_IMAGE_VIEW_TYPE_3D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
 
+    m_image->set_name("Voxelizer::m_image");
+
     create_descriptor_sets(backend);
 
     VkDrawIndexedIndirectCommand indirect_command;
@@ -65,18 +67,18 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
 
     m_instance_buffer_size = sizeof(InstanceData) * m_voxels_per_side * m_voxels_per_side * m_voxels_per_side;
     m_instance_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_instance_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    m_instance_buffer->set_name("Voxelizer::m_instance_buffer");
 
     m_instance_color_buffer_size = sizeof(InstanceData) * m_voxels_per_side * m_voxels_per_side * m_voxels_per_side;
     m_instance_color_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_instance_color_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    m_instance_color_buffer->set_name("Voxelizer::m_instance_color_buffer");
 
     m_indirect_buffer_size = backend->aligned_dynamic_ubo_size(sizeof(VkDrawIndirectCommand));
     m_indirect_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_indirect_buffer_size, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    m_indirect_buffer->set_name("Voxelizer::m_indirect_buffer");
 
     m_visualizer_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelizerData));
     m_visualizer_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_visualizer_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
-
-    m_voxel_grid_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelGridData));
-    m_voxel_grid_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_voxel_grid_ubo_size, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     m_view_proj_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(ViewProjUBO));
     m_view_proj_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_view_proj_ubo_size, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
@@ -169,23 +171,6 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     write_data.pBufferInfo     = &buffer_info;
     write_data.dstBinding      = 0;
     write_data.dstSet          = m_ds_visualizer_ubo->handle();
-
-    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
-
-    // Voxel Grid data UBO
-    DW_ZERO_MEMORY(buffer_info);
-    DW_ZERO_MEMORY(write_data);
-
-    buffer_info.buffer = m_voxel_grid_ubo_data->handle();
-    buffer_info.offset = 0;
-    buffer_info.range  = sizeof(VoxelGridData);
-
-    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_data.descriptorCount = 1;
-    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write_data.pBufferInfo     = &buffer_info;
-    write_data.dstBinding      = 0;
-    write_data.dstSet          = m_ds_voxel_grid_ubo->handle();
 
     vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
 
@@ -345,7 +330,7 @@ void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::v
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount     = 1;
 
-    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
 void Voxelizer::reset_instance_buffer(dw::vk::CommandBuffer::Ptr cmd_buf)
