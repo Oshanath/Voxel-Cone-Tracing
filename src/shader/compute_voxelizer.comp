@@ -1,6 +1,6 @@
 #version 450
 
-layout (local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+layout (local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 struct Vertex {
     vec4 position;
@@ -12,11 +12,13 @@ struct Vertex {
 
 layout(set = 0, binding = 0, rgba8) uniform image3D voxelTexture;
 
-layout (set = 1, binding = 0) uniform VoxelGridUBO 
+layout (set = 1, binding = 0) uniform PerFrameUBO 
 {	
+	mat4 view;
+	mat4 projection;
 	vec4 aabb_min;
 	vec4 aabb_max;
-} voxel_grid;
+} ubo;
 
 layout (set = 2, binding = 0) uniform ViewProjUBO 
 {	
@@ -44,10 +46,29 @@ layout( push_constant ) uniform constants
 
 void main()
 {
-    imageStore(voxelTexture, ivec3(63, 1, 31), vec4(1.0, 0.0, 1.0, 1.0));
-    imageStore(voxelTexture, ivec3(63, 2, 31), vec4(1.0, 0.0, 1.0, 1.0));
-    imageStore(voxelTexture, ivec3(63, 3, 31), vec4(1.0, 0.0, 1.0, 1.0));
-    imageStore(voxelTexture, ivec3(63, 5, 31), vec4(1.0, 0.0, 1.0, 1.0));
-    imageStore(voxelTexture, ivec3(63, 6, 31), vec4(1.0, 0.0, 1.0, 1.0));
+    uint index = gl_GlobalInvocationID.x;
+    
+    #define vertex1 vertices[indices[index]]
+    #define vertex2 vertices[indices[index + 1]]
+    #define vertex3 vertices[indices[index + 2]]
+
+    vec3 _min = ubo.aabb_min.xyz;
+	vec3 _max = ubo.aabb_max.xyz;
+    int voxels_per_side = imageSize(voxelTexture).x;
+    float voxel_width = (_max.x - _min.x) / float(voxels_per_side);
+
+    vec4 vertex1_world = pc.model * vertex1.position;
+    vec4 vertex2_world = pc.model * vertex2.position;
+    vec4 vertex3_world = pc.model * vertex3.position;
+    
+    ivec3 vertex1_voxel = ivec3((vertex1_world.xyz - _min) / voxel_width);
+    ivec3 vertex2_voxel = ivec3((vertex2_world.xyz - _min) / voxel_width);
+    ivec3 vertex3_voxel = ivec3((vertex3_world.xyz - _min) / voxel_width);
+
+    
+
+    imageStore(voxelTexture, vertex1_voxel, vec4(1.0, 1.0, 1.0, 1.0));
+    imageStore(voxelTexture, vertex2_voxel, vec4(1.0, 1.0, 1.0, 1.0));
+    imageStore(voxelTexture, vertex3_voxel, vec4(1.0, 1.0, 1.0, 1.0));
     
 }
