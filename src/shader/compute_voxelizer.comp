@@ -44,13 +44,119 @@ layout( push_constant ) uniform constants
 	mat4 model;
 } pc;
 
+bool voxel_triangle_collision_test(vec3 u0, vec3 u1, vec3 u2, ivec3 voxel, float voxel_width, vec3 voxel_grid_min){
+    
+    float a = voxel_width / 2.0;    // extent
+    vec3 e0 = u1 - u0;              // edge 1
+    vec3 e1 = u2 - u1;              // edge 2
+    vec3 e2 = e1 - e0;              // edge 3
+    vec3 n = cross(e0, e1);         // normal
+    vec3 c = voxel_grid_min + vec3(voxel) * voxel_width + vec3(a);  // voxel center
+    vec3 d = u0 - c;                // vector from triangle to voxel center
+    vec3 A0 = vec3(1.0, 0.0, 0.0);
+    vec3 A1 = vec3(0.0, 1.0, 0.0);
+    vec3 A2 = vec3(0.0, 0.0, 1.0);
+
+    // Seperating axis is the triangle normal
+    float R = a * (dot(n, A0) + dot(n, A1) + dot(n, A2));
+    float p0 = dot(n, d);
+    if (abs(p0) > R) return false;
+
+    // Seperating axis is A0
+    p0 = dot(A0, d);
+    float p1 = p0 + dot(A0, e0);
+    float p2 = p0 + dot(A0, e1);
+    R = a;
+    if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+    // Seperating axis is A1
+	p0 = dot(A1, d);
+	p1 = p0 + dot(A1, e0);
+	p2 = p0 + dot(A1, e1);
+	R = a;
+    if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+    // Seperating axis is A2
+	p0 = dot(A2, d);
+	p1 = p0 + dot(A2, e0);
+	p2 = p0 + dot(A2, e1);
+	R = a;
+	if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+    // Seperating axis is A0 x e0
+    p0 = dot(cross(A0, e0), d);
+    p1 = p0;
+    p2 = p0 + dot(A0, n);
+    R = a * (dot(A2, e0), dot(A1, e0));
+    if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+    // Seperating axis is A0 x e1
+	p0 = dot(cross(A0, e1), d);
+	p1 = p0 - dot(A0, n);
+	p2 = p0;
+	R = a * (dot(A2, e1), dot(A1, e1));
+	if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+    // Seperating axis is A0 x e2
+	p0 = dot(cross(A0, e2), d);
+	p1 = p0 - dot(A0, n);
+	p2 = p0 - dot(A0, n);
+	R = a * (dot(A2, e2), dot(A1, e2));
+	if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+    // Seperating axis is A1 x e0
+	p0 = dot(cross(A1, e0), d);
+	p1 = p0;
+	p2 = p0 + dot(A1, n);
+	R = a * (dot(A2, e0), dot(A0, e0));
+	if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+    // Seperating axis is A1 x e1
+	p0 = dot(cross(A1, e1), d);
+	p1 = p0 - dot(A1, n);
+	p2 = p0;
+	R = a * (dot(A2, e1), dot(A0, e1));
+	if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+    // Seperating axis is A1 x e2
+	p0 = dot(cross(A1, e2), d);
+	p1 = p0 - dot(A1, n);
+	p2 = p0 - dot(A1, n);
+	R = a * (dot(A2, e2), dot(A0, e2));
+	if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+    // Seperating axis is A2 x e0
+	p0 = dot(cross(A2, e0), d);
+	p1 = p0;
+	p2 = p0 + dot(A2, n);
+	R = a * (dot(A1, e0), dot(A0, e0));
+	if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+    // Seperating axis is A2 x e1
+    p0 = dot(cross(A2, e1), d);
+	p1 = p0 - dot(A2, n);
+	p2 = p0;
+	R = a * (dot(A1, e1), dot(A0, e1));
+	if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+
+	// Seperating axis is A2 x e2
+	p0 = dot(cross(A2, e2), d);
+	p1 = p0 - dot(A2, n);
+	p2 = p0 - dot(A2, n);
+	R = a * (dot(A1, e2), dot(A0, e2));
+	if (min(min(p0, p1), p2) > R || max(max(p0, p1), p2) < -R) return false;
+	
+	return true;
+
+}
+
 void main()
 {
     uint index = gl_GlobalInvocationID.x;
     
-    #define vertex1 vertices[indices[index]]
-    #define vertex2 vertices[indices[index + 1]]
-    #define vertex3 vertices[indices[index + 2]]
+    #define vertex1 vertices[indices[index * 3]]
+    #define vertex2 vertices[indices[index * 3 + 1]]
+    #define vertex3 vertices[indices[index * 3 + 2]]
 
     vec3 _min = ubo.aabb_min.xyz;
 	vec3 _max = ubo.aabb_max.xyz;
@@ -67,8 +173,19 @@ void main()
 
     
 
-    imageStore(voxelTexture, vertex1_voxel, vec4(1.0, 1.0, 1.0, 1.0));
-    imageStore(voxelTexture, vertex2_voxel, vec4(1.0, 1.0, 1.0, 1.0));
-    imageStore(voxelTexture, vertex3_voxel, vec4(1.0, 1.0, 1.0, 1.0));
+    //imageStore(voxelTexture, vertex1_voxel, vec4(1.0, 1.0, 1.0, 1.0));
+    //imageStore(voxelTexture, vertex2_voxel, vec4(1.0, 1.0, 1.0, 1.0));
+    //imageStore(voxelTexture, vertex3_voxel, vec4(1.0, 1.0, 1.0, 1.0));
+
+    // Loop over the voxels in the bounding box of the triangle
+    for(uint i = min(min(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x); i <= max(max(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x); i++){
+        for(uint j = min(min(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y); j <= max(max(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y); j++){
+            for(uint k = min(min(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z); k <= max(max(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z); k++){
+                if (voxel_triangle_collision_test(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, ivec3(i, j, k), voxel_width, _min)){
+                    imageStore(voxelTexture, ivec3(i, j, k), vec4(1.0, 1.0, 1.0, 1.0));
+                }
+            }
+        }
+    }
     
 }
