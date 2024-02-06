@@ -59,9 +59,14 @@ void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Back
         auto mesh = object.mesh;
 
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 4, 1, &object.m_ds_vertex_index->handle(), 0, 0);
-        vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), glm::value_ptr(object.get_model()));
+
+        MeshPushConstants push_constants;
+        push_constants.model = object.get_model();
+
+        //vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), glm::value_ptr(object.get_model()));
 
         const auto& submeshes = mesh->sub_meshes();
+        int         index_count = 0;
 
         for (uint32_t i = 0; i < submeshes.size(); i++)
         {
@@ -69,11 +74,14 @@ void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Back
             auto& mat     = mesh->material(submesh.mat_idx);
 
             vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 3, 1, &mat->descriptor_set()->handle(), 0, nullptr);
+            push_constants.start_index = submesh.base_index;
+            vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), &push_constants);
+            index_count += submesh.index_count;
 
             // Issue draw call.
+            vkCmdDispatch(cmd_buf->handle(), submesh.index_count / (3 * 64), 1, 1);
         }
 
-        vkCmdDispatch(cmd_buf->handle(), mesh->indices().size() / (3 * 64), 1, 1);
 
     }
 }

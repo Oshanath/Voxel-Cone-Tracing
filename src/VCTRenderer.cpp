@@ -344,7 +344,7 @@ bool VCTRenderer::load_object(std::string filename)
 bool VCTRenderer::load_objects()
 {
     std::vector<bool> results;
-    results.push_back(load_object("sponza.obj"));
+     results.push_back(load_object("sponza.obj"));
 
     for (bool result : results) {
         if (!result)
@@ -463,6 +463,13 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     if (ImGui::RadioButton("512", &group, 3))
         revoxelize(512);
 
+    float trianglePosition[3] = {0.0f, 0.0f, 0.0f};
+    ImGui::SliderFloat3("triangle position", trianglePosition, -300.0f, 300.0f);
+
+    bool colliding = false;
+    ImGui::Checkbox("colliding", &colliding);
+
+
 
     m_shadow_map->begin_render(cmd_buf, m_vk_backend);
     render_objects(cmd_buf, m_shadow_map->m_pipeline_layout);
@@ -522,6 +529,16 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     AABB aabb = m_voxelizer->get_AABB();
     m_debug_draw.aabb(aabb.min, aabb.max, glm::vec3(1.0f, 1.0f, 1.0f));
+    m_debug_draw.aabb(glm::vec3(10.0f, 10.0f, 10.0f), glm::vec3(100.0f, 100.0f, 100.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+    
+    glm::vec3              triangleTranslation = glm::make_vec3(trianglePosition);
+    std::vector<glm::vec3> triangle { 
+        glm::vec3(20.0f, 20.0f, 20.0f) + triangleTranslation, 
+        glm::vec3(60.0f, 60.0f, 60.0f) + triangleTranslation, 
+        glm::vec3(20.0f, 60.0f, 60.0f) + triangleTranslation, 
+        glm::vec3(20.0f, 20.0f, 20.0f) + triangleTranslation
+    };
+    m_debug_draw.line_strip(triangle.data(), triangle.size(), glm::vec3(1.0f, 1.0f, 1.0f));
     //m_debug_draw.frustum(m_voxelizer->get_proj(), m_voxelizer->get_view(), glm::vec3(1.0f, 0.0f, 0.0f));
     //m_debug_draw.sphere(10.0f, m_voxelizer->get_cam_pos(), glm::vec3(0.0f, 1.0f, 0.0f));
     //m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_voxelizer->get_proj() * m_voxelizer->get_view(), m_voxelizer->get_cam_pos());
