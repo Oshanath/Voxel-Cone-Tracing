@@ -5,11 +5,13 @@ ComputeVoxelizer::ComputeVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_
 {
     create_descriptor_sets(backend);
     create_voxelizer_pipeline_state(backend);
+    this->m_compute_voxelization_type = CORRECT_TEXCOORDS;
 }
 
 void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr backend)
 {
-    dw::vk::ShaderModule::Ptr     cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/compute_voxelizer.comp.spv");
+    // correct texcoords
+    dw::vk::ShaderModule::Ptr     cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/compute_voxelizer_correct_texcoords.comp.spv");
     dw::vk::ComputePipeline::Desc pso_desc;
     pso_desc.set_shader_stage(cs, "main");
 
@@ -24,8 +26,17 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
     m_pipeline_layout->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline_layout");
 
     pso_desc.set_pipeline_layout(m_pipeline_layout);
-    m_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
-    m_pipeline->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline");
+    m_pipeline_correct_texcoords = dw::vk::ComputePipeline::create(backend, pso_desc);
+    m_pipeline_correct_texcoords->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline_correct_texcoords");
+
+    // incorrect texcoords
+    dw::vk::ShaderModule::Ptr     cs2 = dw::vk::ShaderModule::create_from_file(backend, "shaders/compute_voxelizer_incorrect_texcoords.comp.spv");
+    dw::vk::ComputePipeline::Desc pso_desc2;
+    pso_desc2.set_shader_stage(cs2, "main");
+
+    pso_desc2.set_pipeline_layout(m_pipeline_layout);
+    m_pipeline_incorrect_texcoords = dw::vk::ComputePipeline::create(backend, pso_desc2);
+    m_pipeline_incorrect_texcoords->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline_incorrect_texcoords");
 }
 
 void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
@@ -44,7 +55,14 @@ void ComputeVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw
 
     uint32_t offset = 0;
 
-    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline->handle());
+    if (m_compute_voxelization_type == CORRECT_TEXCOORDS)
+    {
+		vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_correct_texcoords->handle());
+	}
+    else
+    {
+		vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_incorrect_texcoords->handle());
+	}
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 0, 1, &m_ds_image->handle(), 0, 0);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 1, 1, &m_ds_data->handle(), 1, &offset);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 2, 1, &m_ds_view_proj_ubo->handle(), 1, &offset);
@@ -79,7 +97,7 @@ void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Back
             index_count += submesh.index_count;
 
             // Issue draw call.
-            vkCmdDispatch(cmd_buf->handle(), submesh.index_count / (3 * 64), 1, 1);
+            vkCmdDispatch(cmd_buf->handle(), submesh.index_count / (3), 1, 1);
         }
 
 

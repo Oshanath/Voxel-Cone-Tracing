@@ -4,7 +4,7 @@ class GeometryVoxelizer : public Voxelizer
 {
 public:
 	dw::vk::PipelineLayout::Ptr   m_pipeline_layout;
-	dw::vk::GraphicsPipeline::Ptr m_pipeline;
+	dw::vk::GraphicsPipeline::Ptr m_pipeline_correct_texcoords;
 
 	GeometryVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height);
 	~GeometryVoxelizer();

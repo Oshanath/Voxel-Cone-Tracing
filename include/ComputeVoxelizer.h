@@ -2,6 +2,12 @@
 
 #include "Voxelizer.h"
 
+enum ComputeVoxelizationType
+{
+	CORRECT_TEXCOORDS,
+	INCORRECT_TEXCOORDS
+};
+
 class ComputeVoxelizer : public Voxelizer
 {
 public:
@@ -13,10 +19,14 @@ public:
 	void voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects);
 	void end_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf) override;
 
+	inline void set_compute_voxelization_type(ComputeVoxelizationType type) { m_compute_voxelization_type = type; }
+
 private:
 
 	dw::vk::PipelineLayout::Ptr m_pipeline_layout;
-	dw::vk::ComputePipeline::Ptr m_pipeline;
+	dw::vk::ComputePipeline::Ptr m_pipeline_correct_texcoords;
+	dw::vk::ComputePipeline::Ptr m_pipeline_incorrect_texcoords;
+	ComputeVoxelizationType m_compute_voxelization_type;
 
 	void create_descriptor_sets(dw::vk::Backend::Ptr backend);
 };

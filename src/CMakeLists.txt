@@ -32,7 +32,8 @@ set(SHADER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/shader/geometry_voxelizer/geometry_voxelizer.vert
     ${PROJECT_SOURCE_DIR}/src/shader/geometry_voxelizer/geometry_voxelizer.geom
     ${PROJECT_SOURCE_DIR}/src/shader/geometry_voxelizer/geometry_voxelizer.frag
-    ${PROJECT_SOURCE_DIR}/src/shader/compute_voxelizer.comp
+    ${PROJECT_SOURCE_DIR}/src/shader/compute_voxelizer_correct_texcoords.comp
+    ${PROJECT_SOURCE_DIR}/src/shader/compute_voxelizer_incorrect_texcoords.comp
     ${PROJECT_SOURCE_DIR}/src/shader/reset.comp
     ${PROJECT_SOURCE_DIR}/src/shader/reset_instance.comp
     ${PROJECT_SOURCE_DIR}/src/shader/voxel_vis.comp

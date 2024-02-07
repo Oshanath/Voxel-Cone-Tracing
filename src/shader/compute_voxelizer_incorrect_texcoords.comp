@@ -90,6 +90,101 @@ bool voxel_triangle_collision_test(vec3 u0, vec3 u1, vec3 u2, ivec3 voxel, float
     return true;
 }
 
+vec3 get_barycentric_coordinates(vec3 a, vec3 b, vec3 c, vec3 p)
+{
+	vec3 ab = b - a;
+	vec3 ac = c - a;
+	vec3 ap = p - a;
+
+	float d00 = dot(ab, ab);
+	float d01 = dot(ab, ac);
+	float d11 = dot(ac, ac);
+	float d20 = dot(ap, ab);
+	float d21 = dot(ap, ac);
+
+	float denom = d00 * d11 - d01 * d01;
+
+	float v = (d11 * d20 - d01 * d21) / denom;
+	float w = (d00 * d21 - d01 * d20) / denom;
+	float u = 1.0f - v - w;
+
+	return vec3(u, v, w);
+}
+
+vec3 find_closest_point_on_line(vec3 a, vec3 b, vec3 p)
+{
+	vec3 ab = b - a;
+	float t = dot(p - a, ab) / dot(ab, ab);
+	return a + t * ab;
+}
+
+vec3 get_closest_position(vec3 a, vec3 b, vec3 c, vec3 p)
+{
+    vec3 ab = b - a;
+    vec3 ac = c - a;
+    vec3 normal = normalize(cross(ab, ac));
+    vec3 ap = p - a;
+
+    float dist = dot(ap, normal);
+    vec3 planar_point = p - dist * normal;
+
+    // check whether planar point is inside or outside the triangle
+    vec3 barycentric = get_barycentric_coordinates(a, b, c, planar_point);
+    if (barycentric.x >= 0.0f && barycentric.y >= 0.0f && barycentric.z >= 0.0f)
+        return planar_point;
+
+    // find the closest point on the edges
+    vec3 closest_point_edge_1 = find_closest_point_on_line(a, b, planar_point);
+    vec3 closest_point_edge_2 = find_closest_point_on_line(b, c, planar_point);
+    vec3 closest_point_edge_3 = find_closest_point_on_line(c, a, planar_point);
+
+    // find the distance to the closest point on the edges
+    float dist_edge_1 = distance(planar_point, closest_point_edge_1);
+    float dist_edge_2 = distance(planar_point, closest_point_edge_2);
+    float dist_edge_3 = distance(planar_point, closest_point_edge_3);
+
+    vec3 vertex_1_of_closest_edge, vertex_2_of_closest_edge, closest_point_to_edge;
+
+    // find the vertices of the closest edge
+    if (dist_edge_1 < dist_edge_2 && dist_edge_1 < dist_edge_3)
+    {
+		vertex_1_of_closest_edge = a;
+		vertex_2_of_closest_edge = b;
+        closest_point_to_edge    = closest_point_edge_1;
+	}
+    else if (dist_edge_2 < dist_edge_1 && dist_edge_2 < dist_edge_3)
+    {
+		vertex_1_of_closest_edge = b;
+		vertex_2_of_closest_edge = c;
+        closest_point_to_edge = closest_point_edge_2;
+	}
+    else
+    {
+		vertex_1_of_closest_edge = c;
+		vertex_2_of_closest_edge = a;
+        closest_point_to_edge = closest_point_edge_3;
+	}
+
+    if (dot(vertex_1_of_closest_edge - closest_point_to_edge, vertex_2_of_closest_edge - closest_point_to_edge) < 0.0f)
+    {
+        return closest_point_to_edge;
+    }
+
+    // find the closest vertex from vertex_1_of_closest_edge and vertex_2_of_closest_edge
+    float dist_vertex_1 = distance(planar_point, vertex_1_of_closest_edge);
+    float dist_vertex_2 = distance(planar_point, vertex_2_of_closest_edge);
+
+    if (dist_vertex_1 < dist_vertex_2)
+    {
+		return vertex_1_of_closest_edge;
+	}
+    else
+    {
+		return vertex_2_of_closest_edge;
+	}
+    
+}
+
 void main()
 {
     uint index = gl_GlobalInvocationID.x;
@@ -117,11 +212,18 @@ void main()
             for(uint k = min(min(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z); k <= max(max(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z); k++){
                 if (voxel_triangle_collision_test(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, ivec3(i, j, k), voxel_width, _min)){
                     
+                    //vec3 voxel_center = _min + vec3(i, j, k) * voxel_width + vec3(voxel_width / 2.0);
+                    //vec3 closest_point = get_closest_position(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, voxel_center);
+                    //vec3 barycentric = get_barycentric_coordinates(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, closest_point);
+
                     vec2 texcoord = (vertex1.texcoord.xy + vertex2.texcoord.xy + vertex3.texcoord.xy) / 3.0;
+                    //vec2 texcoord = vec2(barycentric.x * vertex1.texcoord.x + barycentric.y * vertex2.texcoord.x + barycentric.z * vertex3.texcoord.x,
+                    //                     barycentric.x * vertex1.texcoord.y + barycentric.y * vertex2.texcoord.y + barycentric.z * vertex3.texcoord.y);
                     
                     vec3 diffuse = texture(s_Diffuse, texcoord).xyz;
-                    const vec4 current_voxel_value = imageLoad(voxelTexture, ivec3(i, j, k));
-                    const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
+                    //const vec4 current_voxel_value = imageLoad(voxelTexture, ivec3(i, j, k));
+                    // const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
+                    const vec4 voxel_value = vec4(diffuse, 1.0);
                     imageStore(voxelTexture, ivec3(i, j, k), voxel_value);
                 }
             }

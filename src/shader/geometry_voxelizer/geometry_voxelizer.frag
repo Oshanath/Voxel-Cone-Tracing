@@ -34,7 +34,8 @@ void main()
 
 	vec3 diffuse = texture(s_Diffuse, FS_IN_Texcoord).xyz;
 	const vec4 current_voxel_value = imageLoad(voxelTexture, voxel_coordinate);
-	const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
+	const vec4 voxel_value = vec4(diffuse, 1.0);
+	// const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
 
 	imageStore(voxelTexture, voxel_coordinate, voxel_value);
 }

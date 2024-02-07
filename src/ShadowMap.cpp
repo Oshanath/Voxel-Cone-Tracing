@@ -277,7 +277,7 @@ void ShadowMap::create_pipeline_state(dw::vk::Backend::Ptr backend, const dw::vk
 
     pso_desc.set_render_pass(m_render_pass);
 
-    m_pipeline = dw::vk::GraphicsPipeline::create(backend, pso_desc);
+    m_pipeline_correct_texcoords = dw::vk::GraphicsPipeline::create(backend, pso_desc);
 }
 
 ShadowMap::~ShadowMap()
@@ -290,7 +290,7 @@ ShadowMap::~ShadowMap()
     m_ubo_transforms.reset();
     m_ds_transforms.reset();
     m_ds_shadow_sampler.reset();
-    m_pipeline.reset();
+    m_pipeline_correct_texcoords.reset();
     m_ds_layout_ubo.reset();
     m_ds_layout_sampler.reset();
     m_pipeline_layout.reset();
@@ -344,7 +344,7 @@ void ShadowMap::begin_render(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend
     memcpy(ptr + m_ubo_size * backend->current_frame_idx(), &m_transforms, sizeof(TransformsShadow));
 
     uint32_t dynamic_offset = m_ubo_size * backend->current_frame_idx();
-    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->handle());
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_correct_texcoords->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 1, 1, &m_ds_transforms->handle(), 1, &dynamic_offset);
 }
 

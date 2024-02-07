@@ -3,7 +3,7 @@
 
 void VCTRenderer::create_voxelizer(int resolution)
 {
-    m_voxelizer = std::make_unique<ComputeVoxelizer>(
+    m_compute_voxelizer = std::make_shared<ComputeVoxelizer>(
         m_vk_backend,
         glm::vec3(-1963.12f, -160.925f, 1119.94f),
         glm::vec3(1950.5f, 1543.24f, -1285.63f),
@@ -11,6 +11,17 @@ void VCTRenderer::create_voxelizer(int resolution)
         m_meshes[0]->vertex_input_state_desc(),
         m_width,
         m_height);
+
+    m_geometry_voxelizer = std::make_shared<GeometryVoxelizer>(
+		m_vk_backend,
+		glm::vec3(-1963.12f, -160.925f, 1119.94f),
+		glm::vec3(1950.5f, 1543.24f, -1285.63f),
+		resolution,
+		m_meshes[0]->vertex_input_state_desc(),
+		m_width,
+		m_height);
+
+    m_voxelizer = m_compute_voxelizer;
 }
 
 bool VCTRenderer::init(int argc, const char* argv[])
@@ -107,6 +118,8 @@ void VCTRenderer::shutdown()
     m_ubo_transforms_main.reset();
     m_ubo_lights.reset();
     m_shadow_map.reset();
+    m_compute_voxelizer.reset();
+    m_geometry_voxelizer.reset();
     m_voxelizer.reset();
     m_debug_draw.shutdown();
 }
@@ -116,8 +129,8 @@ dw::AppSettings VCTRenderer::intial_app_settings()
     // Set custom settings here...
     dw::AppSettings settings;
 
-    settings.width       = 1280;
-    settings.height      = 720;
+    settings.width       = 1920;
+    settings.height      = 1080;
     settings.title       = "Voxel Cone Tracing Demo (Vulkan)";
     settings.ray_tracing = false;
     settings.fullscreen  = false;
@@ -453,22 +466,31 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     ImGui::Checkbox("Voxelization wireframe", &m_voxelizer->m_voxelization_visualization_wireframe);
 
 
-    static int group = 0;
-    if (ImGui::RadioButton("64", &group, 0))
+    static int res_group = 0;
+    ImGui::Text("\nVoxelization resolution");
+    if (ImGui::RadioButton("64", &res_group, 0))
         revoxelize(64);
-    if (ImGui::RadioButton("128", &group, 1))
+    if (ImGui::RadioButton("128", &res_group, 1))
         revoxelize(128);
-    if (ImGui::RadioButton("256", &group, 2))
+    if (ImGui::RadioButton("256", &res_group, 2))
         revoxelize(256);
-    if (ImGui::RadioButton("512", &group, 3))
+    if (ImGui::RadioButton("512", &res_group, 3))
         revoxelize(512);
 
-    float trianglePosition[3] = {0.0f, 0.0f, 0.0f};
-    ImGui::SliderFloat3("triangle position", trianglePosition, -300.0f, 300.0f);
-
-    bool colliding = false;
-    ImGui::Checkbox("colliding", &colliding);
-
+    static int type_group = 1;
+    ImGui::Text("\nVoxelization type");
+    if (ImGui::RadioButton("Geometry", &type_group, 0))
+		m_voxelizer = m_geometry_voxelizer;
+    if (ImGui::RadioButton("Compute with correct texcoords", &type_group, 1))
+    {
+        m_voxelizer = m_compute_voxelizer;
+        m_compute_voxelizer->set_compute_voxelization_type(CORRECT_TEXCOORDS);
+    }
+    if (ImGui::RadioButton("Compute with incorrect texcoords", &type_group, 2))
+    {
+        m_voxelizer = m_compute_voxelizer;
+        m_compute_voxelizer->set_compute_voxelization_type(INCORRECT_TEXCOORDS);
+    }
 
 
     m_shadow_map->begin_render(cmd_buf, m_vk_backend);
@@ -529,19 +551,7 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     AABB aabb = m_voxelizer->get_AABB();
     m_debug_draw.aabb(aabb.min, aabb.max, glm::vec3(1.0f, 1.0f, 1.0f));
-    m_debug_draw.aabb(glm::vec3(10.0f, 10.0f, 10.0f), glm::vec3(100.0f, 100.0f, 100.0f), glm::vec3(1.0f, 1.0f, 1.0f));
     
-    glm::vec3              triangleTranslation = glm::make_vec3(trianglePosition);
-    std::vector<glm::vec3> triangle { 
-        glm::vec3(20.0f, 20.0f, 20.0f) + triangleTranslation, 
-        glm::vec3(60.0f, 60.0f, 60.0f) + triangleTranslation, 
-        glm::vec3(20.0f, 60.0f, 60.0f) + triangleTranslation, 
-        glm::vec3(20.0f, 20.0f, 20.0f) + triangleTranslation
-    };
-    m_debug_draw.line_strip(triangle.data(), triangle.size(), glm::vec3(1.0f, 1.0f, 1.0f));
-    //m_debug_draw.frustum(m_voxelizer->get_proj(), m_voxelizer->get_view(), glm::vec3(1.0f, 0.0f, 0.0f));
-    //m_debug_draw.sphere(10.0f, m_voxelizer->get_cam_pos(), glm::vec3(0.0f, 1.0f, 0.0f));
-    //m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_voxelizer->get_proj() * m_voxelizer->get_view(), m_voxelizer->get_cam_pos());
     m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
 
     render_gui(cmd_buf);

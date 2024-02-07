@@ -129,7 +129,9 @@ private:
     Lights m_lights;
 
     // VCT
-    std::unique_ptr<Voxelizer> m_voxelizer;
+    std::shared_ptr<Voxelizer> m_voxelizer;
+    std::shared_ptr<ComputeVoxelizer> m_compute_voxelizer;
+    std::shared_ptr<GeometryVoxelizer> m_geometry_voxelizer;
     std::vector<dw::vk::Fence::Ptr> m_compute_fences;
     bool m_voxelization_visualization_enabled = false;
 };

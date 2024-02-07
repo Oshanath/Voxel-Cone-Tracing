@@ -48,7 +48,7 @@ private:
 
 public:
 
-    dw::vk::GraphicsPipeline::Ptr    m_pipeline;
+    dw::vk::GraphicsPipeline::Ptr    m_pipeline_correct_texcoords;
     dw::vk::PipelineLayout::Ptr      m_pipeline_layout;
 
     dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo;

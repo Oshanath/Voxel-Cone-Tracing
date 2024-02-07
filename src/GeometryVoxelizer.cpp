@@ -29,7 +29,7 @@ GeometryVoxelizer::GeometryVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AAB
 
 GeometryVoxelizer::~GeometryVoxelizer()
 {
-    m_pipeline.reset();
+    m_pipeline_correct_texcoords.reset();
     m_pipeline_layout.reset();
 }
 
@@ -79,7 +79,7 @@ void GeometryVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, d
     info.pClearValues             = nullptr;
 
     vkCmdBeginRenderPass(cmd_buf->handle(), &info, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->handle());
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_correct_texcoords->handle());
 
     VkViewport vp;
 
@@ -112,7 +112,7 @@ void GeometryVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, d
     memcpy(ptr + m_ubo_size * backend->current_frame_idx(), &m_data, sizeof(VoxelizerData));
 
     uint32_t dynamic_offset = m_ubo_size * backend->current_frame_idx();
-    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->handle());
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_correct_texcoords->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 1, 1, &m_ds_data->handle(), 1, &dynamic_offset);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout->handle(), 2, 1, &m_ds_image->handle(), 0, nullptr);
 }
@@ -255,7 +255,7 @@ void GeometryVoxelizer::create_voxelization_pipeline_state(dw::vk::Backend::Ptr 
 
     pso_desc.set_render_pass(m_render_pass);
 
-    m_pipeline = dw::vk::GraphicsPipeline::create(backend, pso_desc);
-    m_pipeline->set_name("Geometry Voxelizer Pipeline");
+    m_pipeline_correct_texcoords = dw::vk::GraphicsPipeline::create(backend, pso_desc);
+    m_pipeline_correct_texcoords->set_name("Geometry Voxelizer Pipeline");
     m_pipeline_layout->set_name("Geometry Voxelizer Pipeline Layout");
 }
