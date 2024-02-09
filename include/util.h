@@ -4,10 +4,9 @@
 // Push constant data structure (model matrix)
 struct MeshPushConstants
 {
-    DW_ALIGNED(16)
         glm::mat4 model;
-    DW_ALIGNED(16)
         glm::int32_t start_index;
+        glm::int32_t triangle_count;
 };
 
 struct AABB

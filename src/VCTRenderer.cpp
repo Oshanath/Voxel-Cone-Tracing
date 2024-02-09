@@ -357,7 +357,9 @@ bool VCTRenderer::load_object(std::string filename)
 bool VCTRenderer::load_objects()
 {
     std::vector<bool> results;
-     results.push_back(load_object("sponza.obj"));
+    //results.push_back(load_object("sponza.obj"));
+    results.push_back(load_object("dragonrgb.glb"));
+    (objects.end() - 1)->scale = 15.0f;
 
     for (bool result : results) {
         if (!result)
@@ -508,6 +510,7 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
         if (m_voxelizer->m_voxelization_type == GEOMETRY_SHADER_VOXELIZATION)
         {
+            DW_SCOPED_SAMPLE("Geometry voxelizer", cmd_buf);
             //std::cout << "Voxelizing with geometry shader\n";
             GeometryVoxelizer* voxelization_ptr = dynamic_cast<GeometryVoxelizer*>(m_voxelizer.get());
             render_objects(cmd_buf, voxelization_ptr->m_pipeline_layout);
@@ -537,6 +540,7 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     if (m_voxelization_visualization_enabled)
     {
         m_voxelizer->begin_render_visualizer(cmd_buf, m_vk_backend);
+        DW_SCOPED_SAMPLE("Visualization", cmd_buf);
         m_voxelizer->render_voxels(cmd_buf);
     }
     else

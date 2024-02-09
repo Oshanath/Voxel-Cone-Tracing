@@ -1,6 +1,6 @@
 #version 450
 
-layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
 struct Vertex {
     vec4 position;
@@ -43,6 +43,7 @@ layout( push_constant ) uniform constants
 {
 	mat4 model;
     int start_index;
+    int triangle_count;
 } pc;
 
 bool test_axis(vec3 axis, vec3 u0, vec3 u1, vec3 u2, float extent){
@@ -188,6 +189,11 @@ vec3 get_closest_position(vec3 a, vec3 b, vec3 c, vec3 p)
 void main()
 {
     uint index = gl_GlobalInvocationID.x;
+
+    if (index >= pc.triangle_count)
+	{
+		return;
+	}
     
     #define vertex1 vertices[indices[pc.start_index + index * 3]]
     #define vertex2 vertices[indices[pc.start_index + index * 3 + 1]]
@@ -223,7 +229,8 @@ void main()
                     vec3 diffuse = texture(s_Diffuse, texcoord).xyz;
                     //const vec4 current_voxel_value = imageLoad(voxelTexture, ivec3(i, j, k));
                     // const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
-                    const vec4 voxel_value = vec4(diffuse, 1.0);
+                    const vec4 voxel_value = vec4(1.0, 1.0, 1.0, 1.0);
+                    //const vec4 voxel_value = vec4(diffuse, 1.0);
                     imageStore(voxelTexture, ivec3(i, j, k), voxel_value);
                 }
             }

@@ -1,4 +1,6 @@
 #include "ComputeVoxelizer.h"
+#include <iostream>
+#include <profiler.h>
 
 ComputeVoxelizer::ComputeVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height) :
     Voxelizer(backend, AABB_min, AABB_max, voxels_per_side, vertex_input_state, COMPUTE_SHADER_VOXELIZATION, m_viewport_width, m_viewport_height)
@@ -70,7 +72,10 @@ void ComputeVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw
 
 void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects)
 {
+    DW_SCOPED_SAMPLE("Compute Voxelizer", cmd_buf);
     VkDeviceSize offset = 0;
+
+    int triangles = 0;
 
     for (auto object : objects)
     {
@@ -84,7 +89,6 @@ void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Back
         //vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), glm::value_ptr(object.get_model()));
 
         const auto& submeshes = mesh->sub_meshes();
-        int         index_count = 0;
 
         for (uint32_t i = 0; i < submeshes.size(); i++)
         {
@@ -92,16 +96,24 @@ void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Back
             auto& mat     = mesh->material(submesh.mat_idx);
 
             vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 3, 1, &mat->descriptor_set()->handle(), 0, nullptr);
-            push_constants.start_index = submesh.base_index;
-            vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), &push_constants);
-            index_count += submesh.index_count;
 
-            // Issue draw call.
-            vkCmdDispatch(cmd_buf->handle(), submesh.index_count / (3), 1, 1);
+            push_constants.start_index = submesh.base_index;
+            int local_size             = 32;
+            int triangle_count         = submesh.index_count / 3;
+            int workgroup_count            = ceil(double(triangle_count) / double(local_size));
+            push_constants.triangle_count = triangle_count;
+
+            vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), &push_constants);
+
+            vkCmdDispatch(cmd_buf->handle(), workgroup_count, 1, 1);
+
+            triangles += triangle_count;
         }
 
 
     }
+
+    std::cout << "Triangles: " << triangles << std::endl;   
 }
 
 void ComputeVoxelizer::end_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf)
