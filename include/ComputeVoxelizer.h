@@ -12,7 +12,7 @@ class ComputeVoxelizer : public Voxelizer
 {
 public:
 
-	ComputeVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height);
+	ComputeVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height, std::vector<RenderObject>& objects);
 	void create_voxelizer_pipeline_state(dw::vk::Backend::Ptr backend);
 
 	void begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend) override;
@@ -28,5 +28,9 @@ private:
 	dw::vk::ComputePipeline::Ptr m_pipeline_incorrect_texcoords;
 	ComputeVoxelizationType m_compute_voxelization_type;
 
-	void create_descriptor_sets(dw::vk::Backend::Ptr backend);
+	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_bindless;
+	dw::vk::DescriptorSet::Ptr	     m_ds_bindless;
+	uint32_t bindless_ds_size;
+
+	void create_descriptor_sets(dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects);
 };

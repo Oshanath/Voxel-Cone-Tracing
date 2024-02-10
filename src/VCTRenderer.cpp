@@ -10,7 +10,8 @@ void VCTRenderer::create_voxelizer(int resolution)
         resolution,
         m_meshes[0]->vertex_input_state_desc(),
         m_width,
-        m_height);
+        m_height,
+        objects);
 
     m_geometry_voxelizer = std::make_shared<GeometryVoxelizer>(
 		m_vk_backend,
@@ -162,6 +163,7 @@ void VCTRenderer::create_descriptor_set_layouts()
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
     m_ds_layout_ubo = dw::vk::DescriptorSetLayout::create(m_vk_backend, desc);
     m_ds_layout_ubo->set_name("Main::ds_layout_ubo");
+
 }
 
 inline void VCTRenderer::create_descriptor_sets()
@@ -358,7 +360,6 @@ bool VCTRenderer::load_objects()
 {
     std::vector<bool> results;
     results.push_back(load_object("sponza.obj"));
-    (objects.end() - 1)->scale = 15.0f;
 
     for (bool result : results) {
         if (!result)
