@@ -23,7 +23,8 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
         .add_descriptor_set_layout(m_ds_layout_ubo_dynamic)
         .add_descriptor_set_layout(dw::Material::descriptor_set_layout())
         .add_descriptor_set_layout(RenderObject::get_ds_layout_vertex_index())
-        .add_descriptor_set_layout(m_ds_layout_bindless);
+        .add_descriptor_set_layout(m_ds_layout_bindless)
+        .add_descriptor_set_layout(m_ds_layout_bindless_buffer);
     pl_desc.add_push_constant_range(VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants));
     m_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
     m_pipeline_layout->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline_layout");
@@ -44,11 +45,12 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
 
 void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects)
 {
+
     // bindless
     dw::vk::DescriptorSetLayout::Desc desc;
     for (int i = 0; i < 5; i++)
     {
-        desc.add_binding(i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100000, VK_SHADER_STAGE_ALL);
+        desc.add_binding(i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000, VK_SHADER_STAGE_ALL);
     }
     m_ds_layout_bindless = dw::vk::DescriptorSetLayout::create(backend, desc);
     m_ds_layout_bindless->set_name("ComputeVoxelizer::ds_layout_bindless");
@@ -58,6 +60,8 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
 
     std::vector<VkDescriptorImageInfo> image_infos[5];
     for (int i = 0; i < 5; i++) { image_infos[i] = std::vector<VkDescriptorImageInfo>(); }
+
+    std::vector<uint32_t> triangle_submesh_map;
 
     for (auto object : objects)
     {
@@ -95,6 +99,13 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
             image_info[4].imageView   = mat->m_emissive_idx != -1 ? mat->m_image_views[mat->m_emissive_idx]->handle() : mat->m_default_image_view->handle();
             image_info[4].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[4].push_back(image_info[4]);
+
+            // add triangles to map
+            uint32_t triangle_count = submesh.index_count / 3;
+            for (int j = 0; j < triangle_count; j++) {
+                triangle_submesh_map.push_back(submesh.base_index / 3 + j);
+                triangle_submesh_map.push_back(i);
+            }
         }
     }
 
@@ -137,6 +148,35 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
     write_data[4].dstSet          = m_ds_bindless->handle();
 
     vkUpdateDescriptorSets(backend->device(), 5, write_data, 0, nullptr);
+
+    // bindless buffer
+    m_bindless_buffer = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, sizeof(uint32_t) * triangle_submesh_map.size(), VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    m_bindless_buffer->set_name("ComputeVoxelizer::m_bindless_buffer");
+    memcpy(m_bindless_buffer->mapped_ptr(), triangle_submesh_map.data(), sizeof(uint32_t) * triangle_submesh_map.size());
+
+    DW_ZERO_MEMORY(desc);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+    m_ds_layout_bindless_buffer = dw::vk::DescriptorSetLayout::create(backend, desc);
+    m_ds_layout_bindless_buffer->set_name("ComputeVoxelizer::m_ds_layout_bindless_buffer");
+
+    m_ds_bindless_buffer = backend->allocate_descriptor_set(m_ds_layout_bindless_buffer);
+    m_ds_bindless_buffer->set_name("ComputeVoxelizer::m_ds_bindless_buffer");
+
+    VkDescriptorBufferInfo buffer_info;
+    buffer_info.buffer = m_bindless_buffer->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = sizeof(uint32_t) * triangle_submesh_map.size();
+
+    VkWriteDescriptorSet write_data2;
+    DW_ZERO_MEMORY(write_data2);
+    write_data2.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data2.descriptorCount = 1;
+    write_data2.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_data2.pBufferInfo     = &buffer_info;
+    write_data2.dstBinding      = 0;
+    write_data2.dstSet          = m_ds_bindless_buffer->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data2, 0, nullptr);
 }
 
 void ComputeVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
@@ -162,6 +202,7 @@ void ComputeVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 1, 1, &m_ds_data->handle(), 1, &offset);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 2, 1, &m_ds_view_proj_ubo->handle(), 1, &offset);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 5, 1, &m_ds_bindless->handle(), 0, 0);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 6, 1, &m_ds_bindless_buffer->handle(), 0, 0);
 }
 
 void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects)

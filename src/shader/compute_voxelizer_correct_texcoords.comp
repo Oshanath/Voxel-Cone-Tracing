@@ -45,6 +45,10 @@ layout (set = 5, binding = 2) uniform sampler2D s_Metallic_unbound[];
 layout (set = 5, binding = 3) uniform sampler2D s_Roughness_unbound[];
 layout (set = 5, binding = 4) uniform sampler2D s_Emissive_unbound[];
 
+layout(set = 6, binding = 0) buffer TriangleMap {
+    uint triangle_map[];
+};
+
 layout( push_constant ) uniform constants
 {
 	mat4 model;

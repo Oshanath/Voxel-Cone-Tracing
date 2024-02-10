@@ -31,6 +31,9 @@ private:
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_bindless;
 	dw::vk::DescriptorSet::Ptr	     m_ds_bindless;
 	uint32_t bindless_ds_size;
+	dw::vk::Buffer::Ptr m_bindless_buffer;
+	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_bindless_buffer;
+	dw::vk::DescriptorSet::Ptr	     m_ds_bindless_buffer;
 
 	void create_descriptor_sets(dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects);
 };
