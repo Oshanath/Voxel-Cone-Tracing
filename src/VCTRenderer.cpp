@@ -357,8 +357,7 @@ bool VCTRenderer::load_object(std::string filename)
 bool VCTRenderer::load_objects()
 {
     std::vector<bool> results;
-    //results.push_back(load_object("sponza.obj"));
-    results.push_back(load_object("dragonrgb.glb"));
+    results.push_back(load_object("sponza.obj"));
     (objects.end() - 1)->scale = 15.0f;
 
     for (bool result : results) {
