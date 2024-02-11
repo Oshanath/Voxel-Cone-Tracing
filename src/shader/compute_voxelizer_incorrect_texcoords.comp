@@ -1,4 +1,6 @@
 #version 450
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_debug_printf : enable
 
 layout (local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
@@ -26,29 +28,27 @@ layout (set = 2, binding = 0) uniform ViewProjUBO
 	mat4 proj;
 } view_proj;
 
-layout (set = 3, binding = 0) uniform sampler2D s_Diffuse;
-layout (set = 3, binding = 1) uniform sampler2D s_Normal;
-layout (set = 3, binding = 2) uniform sampler2D s_Metallic;
-layout (set = 3, binding = 3) uniform sampler2D s_Roughness;
-
-layout(set = 4, binding = 0) buffer VertexBuffer {
+layout(set = 3, binding = 0) buffer VertexBuffer {
     Vertex vertices[];
 };
 
-layout(set = 4, binding = 1) buffer IndexBuffer {
+layout(set = 3, binding = 1) buffer IndexBuffer {
     uint indices[];
 };
 
-layout (set = 5, binding = 0) uniform sampler2D s_Diffuse_unbound[];
-layout (set = 5, binding = 1) uniform sampler2D s_Normal_unbound[];
-layout (set = 5, binding = 2) uniform sampler2D s_Metallic_unbound[];
-layout (set = 5, binding = 3) uniform sampler2D s_Roughness_unbound[];
-layout (set = 5, binding = 4) uniform sampler2D s_Emissive_unbound[];
+layout (set = 4, binding = 0) uniform sampler2D s_Diffuse_unbound[];
+layout (set = 4, binding = 1) uniform sampler2D s_Normal_unbound[];
+layout (set = 4, binding = 2) uniform sampler2D s_Metallic_unbound[];
+layout (set = 4, binding = 3) uniform sampler2D s_Roughness_unbound[];
+layout (set = 4, binding = 4) uniform sampler2D s_Emissive_unbound[];
+
+layout(set = 5, binding = 0) buffer TriangleMap {
+    uint triangle_map[];
+};
 
 layout( push_constant ) uniform constants
 {
 	mat4 model;
-    int start_index;
     int triangle_count;
 } pc;
 
@@ -201,9 +201,11 @@ void main()
 		return;
 	}
     
-    #define vertex1 vertices[indices[pc.start_index + index * 3]]
-    #define vertex2 vertices[indices[pc.start_index + index * 3 + 1]]
-    #define vertex3 vertices[indices[pc.start_index + index * 3 + 2]]
+    #define vertex1 vertices[indices[index * 3]]
+    #define vertex2 vertices[indices[index * 3 + 1]]
+    #define vertex3 vertices[indices[index * 3 + 2]]
+
+    uint texture_index = triangle_map[index];
 
     vec3 _min = ubo.aabb_min.xyz;
 	vec3 _max = ubo.aabb_max.xyz;
@@ -232,7 +234,7 @@ void main()
                     //vec2 texcoord = vec2(barycentric.x * vertex1.texcoord.x + barycentric.y * vertex2.texcoord.x + barycentric.z * vertex3.texcoord.x,
                     //                     barycentric.x * vertex1.texcoord.y + barycentric.y * vertex2.texcoord.y + barycentric.z * vertex3.texcoord.y);
                     
-                    vec3 diffuse = texture(s_Diffuse, texcoord).xyz;
+                    vec3 diffuse = texture(s_Diffuse_unbound[texture_index], texcoord).xyz;
                     //const vec4 current_voxel_value = imageLoad(voxelTexture, ivec3(i, j, k));
                     // const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
                     const vec4 voxel_value = vec4(diffuse, 1.0);

@@ -21,7 +21,6 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
     pl_desc.add_descriptor_set_layout(m_ds_layout_image)
         .add_descriptor_set_layout(m_ds_layout_ubo_dynamic)
         .add_descriptor_set_layout(m_ds_layout_ubo_dynamic)
-        .add_descriptor_set_layout(dw::Material::descriptor_set_layout())
         .add_descriptor_set_layout(RenderObject::get_ds_layout_vertex_index())
         .add_descriptor_set_layout(m_ds_layout_bindless)
         .add_descriptor_set_layout(m_ds_layout_bindless_buffer);
@@ -50,7 +49,7 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
     dw::vk::DescriptorSetLayout::Desc desc;
     for (int i = 0; i < 5; i++)
     {
-        desc.add_binding(i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000, VK_SHADER_STAGE_ALL);
+        desc.add_binding(i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 393, VK_SHADER_STAGE_ALL);
     }
     m_ds_layout_bindless = dw::vk::DescriptorSetLayout::create(backend, desc);
     m_ds_layout_bindless->set_name("ComputeVoxelizer::ds_layout_bindless");
@@ -63,6 +62,8 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
 
     std::vector<uint32_t> triangle_submesh_map;
 
+    int submesh_count = 0;
+
     for (auto object : objects)
     {
         auto        mesh      = object.mesh;
@@ -70,6 +71,7 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
 
         for (uint32_t i = 0; i < submeshes.size(); i++)
         {
+            submesh_count++;
             auto& submesh = submeshes[i];
             auto& mat     = mesh->material(submesh.mat_idx);
 
@@ -103,11 +105,12 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
             // add triangles to map
             uint32_t triangle_count = submesh.index_count / 3;
             for (int j = 0; j < triangle_count; j++) {
-                triangle_submesh_map.push_back(submesh.base_index / 3 + j);
                 triangle_submesh_map.push_back(i);
             }
         }
     }
+
+    std::cout << "submesh count = " << submesh_count << std::endl;
 
     VkWriteDescriptorSet write_data[5];
     for (int i = 0; i < 5; i++) { DW_ZERO_MEMORY(write_data[i]); }
@@ -201,8 +204,8 @@ void ComputeVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 0, 1, &m_ds_image->handle(), 0, 0);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 1, 1, &m_ds_data->handle(), 1, &offset);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 2, 1, &m_ds_view_proj_ubo->handle(), 1, &offset);
-    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 5, 1, &m_ds_bindless->handle(), 0, 0);
-    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 6, 1, &m_ds_bindless_buffer->handle(), 0, 0);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 4, 1, &m_ds_bindless->handle(), 0, 0);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 5, 1, &m_ds_bindless_buffer->handle(), 0, 0);
 }
 
 void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects)
@@ -214,35 +217,18 @@ void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Back
     {
         auto mesh = object.mesh;
 
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 4, 1, &object.m_ds_vertex_index->handle(), 0, 0);
+        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 3, 1, &object.m_ds_vertex_index->handle(), 0, 0);
+
+        int local_size      = 32;
+        int triangle_count  = mesh->indices().size() / 3;
+        int workgroup_count = ceil(double(triangle_count) / double(local_size));
 
         MeshPushConstants push_constants;
         push_constants.model = object.get_model();
+        push_constants.triangle_count = triangle_count;
 
-        //vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), glm::value_ptr(object.get_model()));
-
-        const auto& submeshes = mesh->sub_meshes();
-
-        for (uint32_t i = 0; i < submeshes.size(); i++)
-        {
-            auto& submesh = submeshes[i];
-            auto& mat     = mesh->material(submesh.mat_idx);
-
-            vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 3, 1, &mat->descriptor_set()->handle(), 0, nullptr);
-
-            push_constants.start_index = submesh.base_index;
-            int local_size             = 32;
-            int triangle_count         = submesh.index_count / 3;
-            int workgroup_count            = ceil(double(triangle_count) / double(local_size));
-            push_constants.triangle_count = triangle_count;
-
-            vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), &push_constants);
-
-            vkCmdDispatch(cmd_buf->handle(), workgroup_count, 1, 1);
-
-        }
-
-
+        vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), &push_constants);
+        vkCmdDispatch(cmd_buf->handle(), workgroup_count, 1, 1);
     }
 }
 

@@ -5,7 +5,6 @@
 struct MeshPushConstants
 {
         glm::mat4 model;
-        glm::int32_t start_index;
         glm::int32_t triangle_count;
 };
 
