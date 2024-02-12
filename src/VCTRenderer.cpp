@@ -359,7 +359,9 @@ bool VCTRenderer::load_object(std::string filename)
 bool VCTRenderer::load_objects()
 {
     std::vector<bool> results;
-    results.push_back(load_object("sponza.obj"));
+    // results.push_back(load_object("models/sponza.fbx"));
+     //results.push_back(load_object("models/teapot.fbx"));
+     results.push_back(load_object("models/statue.fbx"));
 
     for (bool result : results) {
         if (!result)

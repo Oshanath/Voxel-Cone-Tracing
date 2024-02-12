@@ -220,10 +220,22 @@ void main()
     ivec3 vertex2_voxel = ivec3((vertex2_world.xyz - _min) / voxel_width);
     ivec3 vertex3_voxel = ivec3((vertex3_world.xyz - _min) / voxel_width);
 
+    // Check if the triangle is outside the voxel grid
+	if (vertex1_world.x < _min.x || vertex1_world.x > _max.x) return;
+    if (vertex1_world.y < _min.y || vertex1_world.y > _max.y) return;
+    if (vertex1_world.z < _min.z || vertex1_world.z > _max.z) return;
+    if (vertex2_world.x < _min.x || vertex2_world.x > _max.x) return;
+    if (vertex2_world.y < _min.y || vertex2_world.y > _max.y) return;
+    if (vertex2_world.z < _min.z || vertex2_world.z > _max.z) return;
+    if (vertex3_world.x < _min.x || vertex3_world.x > _max.x) return;
+    if (vertex3_world.y < _min.y || vertex3_world.y > _max.y) return;
+    if (vertex3_world.z < _min.z || vertex3_world.z > _max.z) return;
+
     // Loop over the voxels in the bounding box of the triangle
     for(uint i = min(min(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x); i <= max(max(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x); i++){
         for(uint j = min(min(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y); j <= max(max(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y); j++){
             for(uint k = min(min(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z); k <= max(max(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z); k++){
+                
                 if (voxel_triangle_collision_test(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, ivec3(i, j, k), voxel_width, _min)){
                     
                     vec3 voxel_center = _min + vec3(i, j, k) * voxel_width + vec3(voxel_width / 2.0);
