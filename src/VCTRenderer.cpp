@@ -488,12 +488,6 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         m_voxelizer = m_compute_voxelizer;
         m_compute_voxelizer->set_compute_voxelization_type(CORRECT_TEXCOORDS);
     }
-    if (ImGui::RadioButton("Compute with incorrect texcoords", &type_group, 2))
-    {
-        m_voxelizer = m_compute_voxelizer;
-        m_compute_voxelizer->set_compute_voxelization_type(INCORRECT_TEXCOORDS);
-    }
-
 
     m_shadow_map->begin_render(cmd_buf, m_vk_backend);
     render_objects(cmd_buf, m_shadow_map->m_pipeline_layout);
