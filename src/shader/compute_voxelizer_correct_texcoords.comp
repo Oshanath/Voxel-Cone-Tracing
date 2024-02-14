@@ -46,6 +46,16 @@ layout(set = 5, binding = 0) buffer TriangleMap {
     uint triangle_map[];
 };
 
+struct VkDispatchIndirectCommand {
+    uint x;
+    uint y;
+    uint z;
+};
+
+layout(std140, set=6, binding = 0) buffer IndirectBuffer {
+    VkDispatchIndirectCommand command;
+};
+
 layout( push_constant ) uniform constants
 {
 	mat4 model;
@@ -231,29 +241,48 @@ void main()
     if (vertex3_world.y < _min.y || vertex3_world.y > _max.y) return;
     if (vertex3_world.z < _min.z || vertex3_world.z > _max.z) return;
 
-    // Loop over the voxels in the bounding box of the triangle
-    for(uint i = min(min(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x); i <= max(max(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x); i++){
-        for(uint j = min(min(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y); j <= max(max(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y); j++){
-            for(uint k = min(min(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z); k <= max(max(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z); k++){
-                
-                if (voxel_triangle_collision_test(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, ivec3(i, j, k), voxel_width, _min)){
-                    
-                    vec3 voxel_center = _min + vec3(i, j, k) * voxel_width + vec3(voxel_width / 2.0);
-                    vec3 closest_point = get_closest_position(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, voxel_center);
-                    vec3 barycentric = get_barycentric_coordinates(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, closest_point);
+    uint min_x = min(min(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x);
+    uint min_y = min(min(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y);
+    uint min_z = min(min(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z);
+    uint max_x = max(max(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x);
+    uint max_y = max(max(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y);
+    uint max_z = max(max(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z);
 
-                    //vec2 texcoord = (vertex1.texcoord.xy + vertex2.texcoord.xy + vertex3.texcoord.xy) / 3.0;
-                    vec2 texcoord = vec2(barycentric.x * vertex1.texcoord.x + barycentric.y * vertex2.texcoord.x + barycentric.z * vertex3.texcoord.x,
-                                         barycentric.x * vertex1.texcoord.y + barycentric.y * vertex2.texcoord.y + barycentric.z * vertex3.texcoord.y);
+    uint x_dim = max_x - min_x + 1;
+    uint y_dim = max_y - min_y + 1;
+    uint z_dim = max_z - min_z + 1;
+
+    #define LARGE_TRIANGLE_VOXEL_THRESHOLD 64
+
+    // Loop over the voxels in the bounding box of the triangle
+    if (x_dim * y_dim * z_dim < LARGE_TRIANGLE_VOXEL_THRESHOLD)
+    {
+        for(uint i = min_x; i <= max_x; i++){
+            for(uint j = min_y; j <= max_y; j++){
+                for(uint k = min_z; k <= max_z; k++){
+                
+                    if (voxel_triangle_collision_test(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, ivec3(i, j, k), voxel_width, _min)){
                     
-                    vec3 diffuse = texture(s_Diffuse_unbound[texture_index], texcoord).xyz;
-                    //const vec4 current_voxel_value = imageLoad(voxelTexture, ivec3(i, j, k));
-                    // const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
-                    const vec4 voxel_value = vec4(diffuse, 1.0);
-                    imageStore(voxelTexture, ivec3(i, j, k), voxel_value);
+                        vec3 voxel_center = _min + vec3(i, j, k) * voxel_width + vec3(voxel_width / 2.0);
+                        vec3 closest_point = get_closest_position(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, voxel_center);
+                        vec3 barycentric = get_barycentric_coordinates(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, closest_point);
+
+                        //vec2 texcoord = (vertex1.texcoord.xy + vertex2.texcoord.xy + vertex3.texcoord.xy) / 3.0;
+                        vec2 texcoord = vec2(barycentric.x * vertex1.texcoord.x + barycentric.y * vertex2.texcoord.x + barycentric.z * vertex3.texcoord.x,
+                                                barycentric.x * vertex1.texcoord.y + barycentric.y * vertex2.texcoord.y + barycentric.z * vertex3.texcoord.y);
+                    
+                        vec3 diffuse = texture(s_Diffuse_unbound[texture_index], texcoord).xyz;
+                        //const vec4 current_voxel_value = imageLoad(voxelTexture, ivec3(i, j, k));
+                        // const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
+                        const vec4 voxel_value = vec4(diffuse, 1.0);
+                        imageStore(voxelTexture, ivec3(i, j, k), voxel_value);
+                    }
                 }
             }
         }
+    }
+    else{
+        atomicAdd(command.x, 1);
     }
     
 }

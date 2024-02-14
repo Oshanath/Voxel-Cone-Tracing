@@ -22,7 +22,6 @@ public:
 	inline void set_compute_voxelization_type(ComputeVoxelizationType type) { m_compute_voxelization_type = type; }
 
 private:
-
 	dw::vk::PipelineLayout::Ptr m_pipeline_layout;
 	dw::vk::ComputePipeline::Ptr m_pipeline_correct_texcoords;
 	dw::vk::ComputePipeline::Ptr m_pipeline_incorrect_texcoords;
@@ -35,5 +34,16 @@ private:
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_bindless_buffer;
 	dw::vk::DescriptorSet::Ptr	     m_ds_bindless_buffer;
 
+	dw::vk::Buffer::Ptr m_indirect_compute_buffer;
+	size_t m_indirect_compute_buffer_size;
+	dw::vk::DescriptorSet::Ptr m_ds_indirect_compute_buffer;
+	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_indirect_compute_buffer;
+
+	dw::vk::PipelineLayout::Ptr m_pipeline_layout_indirect_reset;
+	dw::vk::ComputePipeline::Ptr m_pipeline_indirect_reset;
+
 	void create_descriptor_sets(dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects);
+	void create_indirect_reset_pipeline_state(dw::vk::Backend::Ptr backend);
+	void reset_indirect_buffer(dw::vk::CommandBuffer::Ptr cmd_buf);
+	void reset_compute_indirect_buffer_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf);
 };
