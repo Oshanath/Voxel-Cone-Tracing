@@ -34,6 +34,7 @@ set(SHADER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/shader/geometry_voxelizer/geometry_voxelizer.frag
     ${PROJECT_SOURCE_DIR}/src/shader/compute_voxelizer_correct_texcoords.comp
     ${PROJECT_SOURCE_DIR}/src/shader/reset_compute_indirect.comp
+    ${PROJECT_SOURCE_DIR}/src/shader/large_triangles.comp
     ${PROJECT_SOURCE_DIR}/src/shader/compute_voxelizer_incorrect_texcoords.comp
     ${PROJECT_SOURCE_DIR}/src/shader/reset.comp
     ${PROJECT_SOURCE_DIR}/src/shader/reset_instance.comp

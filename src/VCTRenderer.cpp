@@ -130,8 +130,8 @@ dw::AppSettings VCTRenderer::intial_app_settings()
     // Set custom settings here...
     dw::AppSettings settings;
 
-    settings.width       = 1920;
-    settings.height      = 1080;
+    settings.width       = 1280;
+    settings.height      = 720;
     settings.title       = "Voxel Cone Tracing Demo (Vulkan)";
     settings.ray_tracing = false;
     settings.fullscreen  = false;
@@ -360,8 +360,9 @@ bool VCTRenderer::load_objects()
 {
     std::vector<bool> results;
     results.push_back(load_object("models/sponza.fbx"));
-    //results.push_back(load_object("models/teapot.fbx"));
-    //results.push_back(load_object("models/dragon.fbx"));
+    // results.push_back(load_object("models/dragon.fbx"));
+    //results.push_back(load_object("models/statue.fbx"));
+    // results.push_back(load_object("models/teapot.fbx"));
 
     for (bool result : results) {
         if (!result)

@@ -282,7 +282,7 @@ void main()
         }
     }
     else{
-        atomicAdd(command.x, 1);
+        uint large_triangle_index = atomicAdd(command.x, 1);
     }
     
 }

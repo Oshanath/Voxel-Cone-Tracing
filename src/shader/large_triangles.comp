@@ -1,0 +1,11 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_debug_printf : enable
+
+layout (local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+layout (set = 0, binding = 0) uniform sampler2D s_Diffuse_unbound[];
+layout (set = 0, binding = 1) uniform sampler2D s_Normal_unbound[];
+layout (set = 0, binding = 2) uniform sampler2D s_Metallic_unbound[];
+layout (set = 0, binding = 3) uniform sampler2D s_Roughness_unbound[];
+layout (set = 0, binding = 4) uniform sampler2D s_Emissive_unbound[];
