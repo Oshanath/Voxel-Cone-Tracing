@@ -321,7 +321,7 @@ void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::v
     barrier.image                           = m_image->handle();
     barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
     barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
-    barrier.srcAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.srcAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
     barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
     barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
@@ -331,7 +331,7 @@ void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::v
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount     = 1;
 
-    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
 void Voxelizer::reset_instance_buffer(dw::vk::CommandBuffer::Ptr cmd_buf)

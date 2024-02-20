@@ -359,7 +359,7 @@ bool VCTRenderer::load_object(std::string filename)
 bool VCTRenderer::load_objects()
 {
     std::vector<bool> results;
-    results.push_back(load_object("models/sponza.fbx"));
+    results.push_back(load_object("models/sponza/Sponza.gltf"));
     // results.push_back(load_object("models/dragon.fbx"));
     //results.push_back(load_object("models/statue.fbx"));
     // results.push_back(load_object("models/teapot.fbx"));
@@ -493,7 +493,10 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     }
 
     m_shadow_map->begin_render(cmd_buf, m_vk_backend);
-    render_objects(cmd_buf, m_shadow_map->m_pipeline_layout);
+    {
+        DW_SCOPED_SAMPLE("Shadow map", cmd_buf);
+        render_objects(cmd_buf, m_shadow_map->m_pipeline_layout);
+    }
     m_shadow_map->end_render(cmd_buf);
 
     //if (m_voxelizer->first_time)
@@ -521,8 +524,8 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
         m_voxelizer->end_voxelization(cmd_buf);
 
-        m_voxelizer->voxelization_visualization_image_memory_barrier_voxel_grid(cmd_buf);
         m_voxelizer->reset_instance_buffer(cmd_buf);
+        m_voxelizer->voxelization_visualization_image_memory_barrier_voxel_grid(cmd_buf);
         m_voxelizer->reset_voxelization_buffer_memory_barrier_indirect(cmd_buf);
 
         m_voxelizer->dispatch_visualization_compute_shader(m_vk_backend, cmd_buf);
@@ -547,6 +550,7 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 1, 1, &m_ds_transforms_main->handle(), 1, &dynamic_offset);
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 2, 1, &m_shadow_map->m_ds_shadow_sampler->handle(), 0, nullptr);
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 3, 1, &m_ds_lights->handle(), 1, &lights_dynamic_offset);
+        DW_SCOPED_SAMPLE("Main render", cmd_buf);
         render_objects(cmd_buf, m_pipeline_layout_main);
     }
 

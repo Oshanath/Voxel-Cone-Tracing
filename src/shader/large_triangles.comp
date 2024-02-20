@@ -1,11 +1,79 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_debug_printf : enable
 
-layout (local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+#define NUM_THREADS 64
 
-layout (set = 0, binding = 0) uniform sampler2D s_Diffuse_unbound[];
-layout (set = 0, binding = 1) uniform sampler2D s_Normal_unbound[];
-layout (set = 0, binding = 2) uniform sampler2D s_Metallic_unbound[];
-layout (set = 0, binding = 3) uniform sampler2D s_Roughness_unbound[];
-layout (set = 0, binding = 4) uniform sampler2D s_Emissive_unbound[];
+layout (local_size_x = NUM_THREADS, local_size_y = 1, local_size_z = 1) in;
+
+#include "compute_voxelizer_common.h"
+
+shared uint triangle_index;
+
+void main()
+{
+
+    if (gl_LocalInvocationID.x == 0)
+        triangle_index = large_triangle_indices[gl_WorkGroupID.x];
+
+    barrier();
+
+    #define vertex1 vertices[indices[triangle_index * 3]]
+    #define vertex2 vertices[indices[triangle_index * 3 + 1]]
+    #define vertex3 vertices[indices[triangle_index * 3 + 2]]
+
+    uint texture_index = triangle_map[triangle_index];
+
+    vec3 _min = ubo.aabb_min.xyz;
+	vec3 _max = ubo.aabb_max.xyz;
+    int voxels_per_side = imageSize(voxelTexture).x;
+    float voxel_width = (_max.x - _min.x) / float(voxels_per_side);
+
+    vec4 vertex1_world = pc.model * vertex1.position;
+    vec4 vertex2_world = pc.model * vertex2.position;
+    vec4 vertex3_world = pc.model * vertex3.position;
+    
+    ivec3 vertex1_voxel = ivec3((vertex1_world.xyz - _min) / voxel_width);
+    ivec3 vertex2_voxel = ivec3((vertex2_world.xyz - _min) / voxel_width);
+    ivec3 vertex3_voxel = ivec3((vertex3_world.xyz - _min) / voxel_width);
+
+    uint min_x = min(min(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x);
+    uint min_y = min(min(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y);
+    uint min_z = min(min(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z);
+    uint max_x = max(max(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x);
+    uint max_y = max(max(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y);
+    uint max_z = max(max(vertex1_voxel.z, vertex2_voxel.z), vertex3_voxel.z);
+
+    uint x_dim = max_x - min_x + 1;
+    uint y_dim = max_y - min_y + 1;
+    uint z_dim = max_z - min_z + 1;
+    uint voxel_count = x_dim * y_dim * z_dim;
+    
+    uint current_id = gl_LocalInvocationID.x;
+
+    while(current_id < voxel_count){
+    
+        uint i = (current_id % (x_dim * y_dim)) % x_dim + min_x;
+        uint j = (current_id % (x_dim * y_dim)) / x_dim + min_y;
+        uint k = current_id / (x_dim * y_dim) + min_z;
+
+        current_id += NUM_THREADS;
+
+        if (voxel_triangle_collision_test(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, ivec3(i, j, k), voxel_width, _min)){
+            vec3 voxel_center = _min + vec3(i, j, k) * voxel_width + vec3(voxel_width / 2.0);
+            vec3 closest_point = get_closest_position(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, voxel_center);
+            vec3 barycentric = get_barycentric_coordinates(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, closest_point);
+
+            vec2 texcoord = vec2(barycentric.x * vertex1.texcoord.x + barycentric.y * vertex2.texcoord.x + barycentric.z * vertex3.texcoord.x,
+                                    barycentric.x * vertex1.texcoord.y + barycentric.y * vertex2.texcoord.y + barycentric.z * vertex3.texcoord.y);
+                    
+            vec3 diffuse = texture(s_Diffuse_unbound[texture_index], texcoord).xyz;
+            //const vec4 current_voxel_value = imageLoad(voxelTexture, ivec3(i, j, k));
+            // const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
+            const vec4 voxel_value = vec4(diffuse, 1.0);
+            imageStore(voxelTexture, ivec3(i, j, k), voxel_value);
+        }
+
+    }
+}

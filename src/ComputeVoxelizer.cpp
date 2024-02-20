@@ -25,7 +25,9 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
         .add_descriptor_set_layout(RenderObject::get_ds_layout_vertex_index())
         .add_descriptor_set_layout(m_ds_layout_bindless)
         .add_descriptor_set_layout(m_ds_layout_bindless_buffer)
-        .add_descriptor_set_layout(m_ds_layout_indirect_compute_buffer);
+        .add_descriptor_set_layout(m_ds_layout_indirect_compute_buffer)
+        .add_descriptor_set_layout(m_ds_layout_large_triangle_buffer);
+
     pl_desc.add_push_constant_range(VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants));
     m_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
     m_pipeline_layout->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline_layout");
@@ -42,10 +44,49 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
     pso_desc2.set_pipeline_layout(m_pipeline_layout);
     m_pipeline_incorrect_texcoords = dw::vk::ComputePipeline::create(backend, pso_desc2);
     m_pipeline_incorrect_texcoords->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline_incorrect_texcoords");
+
+    // large triangle
+    dw::vk::ShaderModule::Ptr     cs3 = dw::vk::ShaderModule::create_from_file(backend, "shaders/large_triangles.comp.spv");
+    dw::vk::ComputePipeline::Desc pso_desc3;
+    pso_desc3.set_shader_stage(cs3, "main");
+
+    pso_desc3.set_pipeline_layout(m_pipeline_layout);
+    m_pipeline_large_triangle = dw::vk::ComputePipeline::create(backend, pso_desc3);
+    m_pipeline_large_triangle->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline_large_triangle");
+
 }
 
 void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects)
 {
+    // Large triangle buffer
+    m_large_triangle_buffer_size = backend->aligned_dynamic_ubo_size(sizeof(uint32_t) * 100000);
+    m_large_triangle_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_large_triangle_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    m_large_triangle_buffer->set_name("ComputeVoxelizer::m_large_triangle_buffer");
+
+    dw::vk::DescriptorSetLayout::Desc desc_large_triangle_buffer;
+    desc_large_triangle_buffer.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+    m_ds_layout_large_triangle_buffer = dw::vk::DescriptorSetLayout::create(backend, desc_large_triangle_buffer);
+    m_ds_layout_large_triangle_buffer->set_name("ComputeVoxelizer::m_ds_layout_large_triangle_buffer");
+
+    m_ds_large_triangle_buffer = backend->allocate_descriptor_set(m_ds_layout_large_triangle_buffer);
+    m_ds_large_triangle_buffer->set_name("ComputeVoxelizer::m_ds_large_triangle_buffer");
+
+    VkDescriptorBufferInfo buffer_info_large_triangle;
+    buffer_info_large_triangle.buffer = m_large_triangle_buffer->handle();
+    buffer_info_large_triangle.offset = 0;
+    buffer_info_large_triangle.range  = m_large_triangle_buffer_size;
+
+    VkWriteDescriptorSet write_data_large_triangle;
+    DW_ZERO_MEMORY(write_data_large_triangle);
+    write_data_large_triangle.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data_large_triangle.descriptorCount = 1;
+    write_data_large_triangle.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_data_large_triangle.pBufferInfo     = &buffer_info_large_triangle;
+    write_data_large_triangle.dstBinding      = 0;
+    write_data_large_triangle.dstSet          = m_ds_large_triangle_buffer->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data_large_triangle, 0, nullptr);
+
     // indirect compute buffer
     m_indirect_compute_buffer_size = backend->aligned_dynamic_ubo_size(sizeof(VkDispatchIndirectCommand));
     m_indirect_compute_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_indirect_compute_buffer_size, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
@@ -53,8 +94,8 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
 
     VkDispatchIndirectCommand indirect_command;
     indirect_command.x = 0;
-    indirect_command.y = 0;
-    indirect_command.z = 0;
+    indirect_command.y = 1;
+    indirect_command.z = 1;
 
     uint8_t* ptr = (uint8_t*)m_indirect_compute_buffer->mapped_ptr();
     memcpy(ptr, &indirect_command, sizeof(VkDispatchIndirectCommand));
@@ -83,12 +124,19 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
 
     vkUpdateDescriptorSets(backend->device(), 1, &write_data_indirect_compute, 0, nullptr);
 
+    // submesh count
+    uint32_t submesh_count = 0;
+    for (auto object : objects)
+    {
+		auto mesh = object.mesh;
+		submesh_count += mesh->sub_meshes().size();
+	}
 
     // bindless
     dw::vk::DescriptorSetLayout::Desc desc;
     for (int i = 0; i < 5; i++)
     {
-        desc.add_binding(i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 393, VK_SHADER_STAGE_ALL);
+        desc.add_binding(i, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, submesh_count, VK_SHADER_STAGE_ALL);
     }
     m_ds_layout_bindless = dw::vk::DescriptorSetLayout::create(backend, desc);
     m_ds_layout_bindless->set_name("ComputeVoxelizer::ds_layout_bindless");
@@ -101,8 +149,6 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
 
     std::vector<uint32_t> triangle_submesh_map;
 
-    int submesh_count = 0;
-
     for (auto object : objects)
     {
         auto        mesh      = object.mesh;
@@ -110,7 +156,6 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
 
         for (uint32_t i = 0; i < submeshes.size(); i++)
         {
-            submesh_count++;
             auto& submesh = submeshes[i];
             auto& mat     = mesh->material(submesh.mat_idx);
 
@@ -249,6 +294,31 @@ void ComputeVoxelizer::begin_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 4, 1, &m_ds_bindless->handle(), 0, 0);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 5, 1, &m_ds_bindless_buffer->handle(), 0, 0);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 6, 1, &m_ds_indirect_compute_buffer->handle(), 0, 0);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 7, 1, &m_ds_large_triangle_buffer->handle(), 0, 0);
+}
+
+void ComputeVoxelizer::begin_large_triangle_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend)
+{
+    large_triangle_buffer_memory_barrier(cmd_buf);
+
+    AABB aabb       = get_AABB();
+    m_data.AABB_min = glm::vec4(aabb.min, 1.0f);
+    m_data.AABB_max = glm::vec4(aabb.max, 1.0f);
+
+    uint8_t* ptr = (uint8_t*)m_ubo_data->mapped_ptr();
+    memcpy(ptr + m_ubo_size * backend->current_frame_idx(), &m_data, sizeof(VoxelizerData));
+
+    uint32_t offset = 0;
+
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_large_triangle->handle());
+
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 0, 1, &m_ds_image->handle(), 0, 0);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 1, 1, &m_ds_data->handle(), 1, &offset);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 2, 1, &m_ds_view_proj_ubo->handle(), 1, &offset);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 4, 1, &m_ds_bindless->handle(), 0, 0);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 5, 1, &m_ds_bindless_buffer->handle(), 0, 0);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 6, 1, &m_ds_indirect_compute_buffer->handle(), 0, 0);
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 7, 1, &m_ds_large_triangle_buffer->handle(), 0, 0);
 }
 
 void ComputeVoxelizer::create_indirect_reset_pipeline_state(dw::vk::Backend::Ptr backend)
@@ -288,6 +358,22 @@ void ComputeVoxelizer::reset_compute_indirect_buffer_memory_barrier(dw::vk::Comm
     vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
 }
 
+void ComputeVoxelizer::large_triangle_buffer_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+	VkBufferMemoryBarrier barrier = {};
+	barrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	barrier.buffer                = m_large_triangle_buffer->handle();
+	barrier.srcAccessMask         = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	barrier.dstAccessMask         = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+	barrier.srcQueueFamilyIndex   = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex   = VK_QUEUE_FAMILY_IGNORED;
+	barrier.size                  = m_large_triangle_buffer_size;
+	barrier.offset                = 0;
+	barrier.pNext                 = nullptr;
+
+	vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
+}
+
 void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects)
 {
     DW_SCOPED_SAMPLE("Compute Voxelizer", cmd_buf);
@@ -310,6 +396,9 @@ void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Back
         vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), &push_constants);
         vkCmdDispatch(cmd_buf->handle(), workgroup_count, 1, 1);
     }
+
+    begin_large_triangle_voxelization(cmd_buf, backend);
+    vkCmdDispatchIndirect(cmd_buf->handle(), m_indirect_compute_buffer->handle(), 0);
 }
 
 void ComputeVoxelizer::end_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf)
