@@ -58,9 +58,15 @@ layout(std140, set = 6, binding = 0) buffer IndirectBuffer
     VkDispatchIndirectCommand command;
 };
 
+struct LargeTriangle
+{
+	uint triangle_index;
+	uint inner_triangle_index;
+};
+
 layout(set = 7, binding = 0) buffer LargeTriangleArray
 {
-    uint large_triangle_indices[];
+        LargeTriangle large_triangles[];
 };
 
 layout(push_constant) uniform constants

@@ -40,7 +40,7 @@ shared uint triangle_index;
 void main(){
 
     if (gl_LocalInvocationID.x == 0)
-        triangle_index = large_triangle_indices[gl_WorkGroupID.x];
+        triangle_index = large_triangles[gl_WorkGroupID.x].triangle_index;
 
     barrier();
 
@@ -141,9 +141,10 @@ void main(){
 
     uint count = uint(float(voxel_count) / float(NUM_THREADS)) + 1;
 
-    int index = int(gl_LocalInvocationID.x);
+    uint inner_index = large_triangles[gl_WorkGroupID.x].inner_triangle_index;
+    int index = int(gl_LocalInvocationID.x + inner_index * NUM_THREADS);
 
-    while(index < voxel_count){
+    if(index < voxel_count){
     
         int i = int(index) % x_dim_voxel + min_x_voxel;
         int j = int(index / x_dim_voxel) + min_y_voxel;
@@ -159,7 +160,7 @@ void main(){
 
         vec3 barycentric = get_barycentric_coordinates(vertex1_voxel_space, vertex2_voxel_space, vertex3_voxel_space, vec3(voxel_coord));
         if(barycentric.x < 0 || barycentric.y < 0 || barycentric.z < 0)
-		    continue;
+		    return;
 
         vec2 texcoord = vec2(barycentric.x * vertex1.texcoord.x + barycentric.y * vertex2.texcoord.x + barycentric.z * vertex3.texcoord.x,
                                 barycentric.x * vertex1.texcoord.y + barycentric.y * vertex2.texcoord.y + barycentric.z * vertex3.texcoord.y);

@@ -8,6 +8,12 @@ enum ComputeVoxelizationType
 	INCORRECT_TEXCOORDS
 };
 
+struct LargeTriangle
+{
+	uint32_t triangle_index;
+	uint32_t inner_triangle_index;
+};
+
 class ComputeVoxelizer : public Voxelizer
 {
 public:

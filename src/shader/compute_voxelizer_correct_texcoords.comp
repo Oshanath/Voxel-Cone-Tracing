@@ -57,7 +57,8 @@ void main()
     uint y_dim = max_y - min_y + 1;
     uint z_dim = max_z - min_z + 1;
 
-    #define LARGE_TRIANGLE_VOXEL_THRESHOLD 25
+    #define LARGE_TRIANGLE_VOXEL_THRESHOLD 15
+    #define WORKGROUP_SIZE 64
 
     // Loop over the voxels in the bounding box of the triangle
     if (x_dim * y_dim * z_dim < LARGE_TRIANGLE_VOXEL_THRESHOLD)
@@ -84,8 +85,15 @@ void main()
         }
     }
     else{
-        uint large_triangle_index = atomicAdd(command.x, 1);
-        large_triangle_indices[large_triangle_index] = index;
+        uint workgroup_count = (x_dim * y_dim * z_dim) / WORKGROUP_SIZE + 1;
+        uint large_triangle_index = atomicAdd(command.x, workgroup_count);
+
+        for(uint i = 0; i < workgroup_count; i++){
+            //if(index == 262264)
+                //debugPrintfEXT("triangle index = %d, inner index = %d", index, i);
+            large_triangles[large_triangle_index + i].triangle_index = index; // change struct to include both triangle index and per triangle index
+            large_triangles[large_triangle_index + i].inner_triangle_index = i;
+        }
     }
     
 }
