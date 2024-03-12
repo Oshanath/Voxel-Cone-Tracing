@@ -377,28 +377,36 @@ void ComputeVoxelizer::large_triangle_buffer_memory_barrier(dw::vk::CommandBuffe
 void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects)
 {
     DW_SCOPED_SAMPLE("Compute Voxelizer", cmd_buf);
-    VkDeviceSize offset = 0;
 
-    for (auto object : objects)
     {
-        auto mesh = object.mesh;
+        DW_SCOPED_SAMPLE("Small Triangles", cmd_buf);
+        VkDeviceSize offset = 0;
 
-        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 3, 1, &object.m_ds_vertex_index->handle(), 0, 0);
+        for (auto object : objects)
+        {
+            auto mesh = object.mesh;
 
-        int local_size      = 32;
-        int triangle_count  = mesh->indices().size() / 3;
-        int workgroup_count = ceil(double(triangle_count) / double(local_size));
+            vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline_layout->handle(), 3, 1, &object.m_ds_vertex_index->handle(), 0, 0);
 
-        MeshPushConstants push_constants;
-        push_constants.model = object.get_model();
-        push_constants.triangle_count = triangle_count;
+            int local_size      = 32;
+            int triangle_count  = mesh->indices().size() / 3;
+            int workgroup_count = ceil(double(triangle_count) / double(local_size));
 
-        vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), &push_constants);
-        vkCmdDispatch(cmd_buf->handle(), workgroup_count, 1, 1);
+            MeshPushConstants push_constants;
+            push_constants.model          = object.get_model();
+            push_constants.triangle_count = triangle_count;
+
+            vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), &push_constants);
+            vkCmdDispatch(cmd_buf->handle(), workgroup_count, 1, 1);
+        }    
+    
     }
 
-    begin_large_triangle_voxelization(cmd_buf, backend);
-    vkCmdDispatchIndirect(cmd_buf->handle(), m_indirect_compute_buffer->handle(), 0);
+    {
+        DW_SCOPED_SAMPLE("Large Triangles", cmd_buf);
+        begin_large_triangle_voxelization(cmd_buf, backend);
+        vkCmdDispatchIndirect(cmd_buf->handle(), m_indirect_compute_buffer->handle(), 0);
+    }
 }
 
 void ComputeVoxelizer::end_voxelization(dw::vk::CommandBuffer::Ptr cmd_buf)

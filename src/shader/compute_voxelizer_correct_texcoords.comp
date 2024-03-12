@@ -57,7 +57,7 @@ void main()
     uint y_dim = max_y - min_y + 1;
     uint z_dim = max_z - min_z + 1;
 
-    #define LARGE_TRIANGLE_VOXEL_THRESHOLD 32
+    #define LARGE_TRIANGLE_VOXEL_THRESHOLD 25
 
     // Loop over the voxels in the bounding box of the triangle
     if (x_dim * y_dim * z_dim < LARGE_TRIANGLE_VOXEL_THRESHOLD)
