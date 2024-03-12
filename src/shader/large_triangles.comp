@@ -69,8 +69,6 @@ void main()
                                     barycentric.x * vertex1.texcoord.y + barycentric.y * vertex2.texcoord.y + barycentric.z * vertex3.texcoord.y);
                     
             vec3 diffuse = texture(s_Diffuse_unbound[texture_index], texcoord).xyz;
-            //const vec4 current_voxel_value = imageLoad(voxelTexture, ivec3(i, j, k));
-            // const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
             const vec4 voxel_value = vec4(diffuse, 1.0);
             imageStore(voxelTexture, ivec3(i, j, k), voxel_value);
         }

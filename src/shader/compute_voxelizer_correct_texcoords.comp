@@ -57,7 +57,7 @@ void main()
     uint y_dim = max_y - min_y + 1;
     uint z_dim = max_z - min_z + 1;
 
-    #define LARGE_TRIANGLE_VOXEL_THRESHOLD 64
+    #define LARGE_TRIANGLE_VOXEL_THRESHOLD 32
 
     // Loop over the voxels in the bounding box of the triangle
     if (x_dim * y_dim * z_dim < LARGE_TRIANGLE_VOXEL_THRESHOLD)
@@ -72,13 +72,10 @@ void main()
                         vec3 closest_point = get_closest_position(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, voxel_center);
                         vec3 barycentric = get_barycentric_coordinates(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, closest_point);
 
-                        //vec2 texcoord = (vertex1.texcoord.xy + vertex2.texcoord.xy + vertex3.texcoord.xy) / 3.0;
                         vec2 texcoord = vec2(barycentric.x * vertex1.texcoord.x + barycentric.y * vertex2.texcoord.x + barycentric.z * vertex3.texcoord.x,
                                                 barycentric.x * vertex1.texcoord.y + barycentric.y * vertex2.texcoord.y + barycentric.z * vertex3.texcoord.y);
                     
                         vec3 diffuse = texture(s_Diffuse_unbound[texture_index], texcoord).xyz;
-                        //const vec4 current_voxel_value = imageLoad(voxelTexture, ivec3(i, j, k));
-                        // const vec4 voxel_value = vec4(current_voxel_value.xyz + diffuse, current_voxel_value.w + 1.0);
                         const vec4 voxel_value = vec4(diffuse, 1.0);
                         imageStore(voxelTexture, ivec3(i, j, k), voxel_value);
                     }

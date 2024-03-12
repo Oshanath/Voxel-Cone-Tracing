@@ -46,7 +46,7 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
     m_pipeline_incorrect_texcoords->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline_incorrect_texcoords");
 
     // large triangle
-    dw::vk::ShaderModule::Ptr     cs3 = dw::vk::ShaderModule::create_from_file(backend, "shaders/large_triangles.comp.spv");
+    dw::vk::ShaderModule::Ptr     cs3 = dw::vk::ShaderModule::create_from_file(backend, "shaders/large_triangles_dda.comp.spv");
     dw::vk::ComputePipeline::Desc pso_desc3;
     pso_desc3.set_shader_stage(cs3, "main");
 
