@@ -15,7 +15,7 @@ void main()
 {
 
     if (gl_LocalInvocationID.x == 0)
-        triangle_index = large_triangle_indices[gl_WorkGroupID.x];
+        triangle_index = large_triangles[gl_WorkGroupID.x].triangle_index;
 
     barrier();
 
