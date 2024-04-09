@@ -154,6 +154,8 @@ private:
 	dw::vk::Buffer::Ptr				 m_instance_color_buffer;
 	size_t							 m_indirect_buffer_size;
 	dw::vk::Buffer::Ptr				 m_indirect_buffer;
+	size_t                           m_mip_map_atomic_counters_buffer_size;
+	dw::vk::Buffer::Ptr				 m_mip_map_atomic_counters_buffer;
 
 	dw::vk::DescriptorSet::Ptr       m_ds_instance_buffer;
 	dw::vk::DescriptorSet::Ptr       m_ds_instance_color_buffer;

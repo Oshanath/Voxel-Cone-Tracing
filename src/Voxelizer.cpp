@@ -95,6 +95,9 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ubo_size = backend->aligned_dynamic_ubo_size(sizeof(VoxelizerData));
     m_ubo_data = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
+    m_mip_map_atomic_counters_buffer_size = backend->aligned_dynamic_ubo_size(sizeof(uint32_t) * (m_mip_level_count - 4));
+    m_mip_map_atomic_counters_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_mip_map_atomic_counters_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
     dw::vk::DescriptorSetLayout::Desc desc;
 
     DW_ZERO_MEMORY(desc);
@@ -114,6 +117,7 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
 
     DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_mip_level_count, VK_SHADER_STAGE_COMPUTE_BIT);
+    desc.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
     m_ds_layout_voxel_grid_mip_maps = dw::vk::DescriptorSetLayout::create(backend, desc);
     m_ds_layout_voxel_grid_mip_maps->set_name("Voxelizer::m_ds_layout_voxel_grid_mip_maps");
 
@@ -176,6 +180,7 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     // Voxel Grid Mip Maps
 
     std::vector<VkDescriptorImageInfo> image_infos;
+    std::vector<VkWriteDescriptorSet>  write_datas;
 
     for (int i = 0; i < m_mip_level_count; i++)
     {
@@ -194,8 +199,23 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     write_data.pImageInfo      = image_infos.data();
     write_data.dstBinding      = 0;
     write_data.dstSet          = m_ds_voxel_grid_mip_maps->handle();
+    write_datas.push_back(write_data);
 
-    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+    DW_ZERO_MEMORY(buffer_info);
+    buffer_info.buffer = m_mip_map_atomic_counters_buffer->handle();
+    buffer_info.offset = 0;
+    buffer_info.range  = m_mip_map_atomic_counters_buffer_size;
+
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = 1;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_data.pBufferInfo     = &buffer_info;
+    write_data.dstBinding      = 1;
+    write_data.dstSet          = m_ds_voxel_grid_mip_maps->handle();
+
+    write_datas.push_back(write_data);
+
+    vkUpdateDescriptorSets(backend->device(), 2, write_datas.data(), 0, nullptr);
 
     // Visualizer UBO Transforms
     DW_ZERO_MEMORY(buffer_info);
