@@ -13,9 +13,16 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     m_viewport_width(viewport_width),
     m_viewport_height(viewport_height)
 {
-    m_image      = dw::vk::Image::create(backend, VK_IMAGE_TYPE_3D, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, VMA_MEMORY_USAGE_GPU_ONLY, VK_IMAGE_USAGE_STORAGE_BIT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED);
+    m_mip_level_count = static_cast<uint32_t>(std::floor(std::log2(m_voxels_per_side))) + 1;
+
+    m_image = dw::vk::Image::create(backend, VK_IMAGE_TYPE_3D, m_voxels_per_side, m_voxels_per_side, m_voxels_per_side, m_mip_level_count, 1, VK_FORMAT_R8G8B8A8_UNORM, VMA_MEMORY_USAGE_GPU_ONLY, VK_IMAGE_USAGE_STORAGE_BIT, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_LAYOUT_UNDEFINED);
     m_image->set_name("Voxel grid");
     m_image_view = dw::vk::ImageView::create(backend, m_image, VK_IMAGE_VIEW_TYPE_3D, VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
+
+    for (int i = 0; i < m_mip_level_count; i++)
+    {
+        m_image_views_mip_levels.push_back(dw::vk::ImageView::create(backend, m_image, VK_IMAGE_VIEW_TYPE_3D, VK_IMAGE_ASPECT_COLOR_BIT, i, 1, 0, 1));
+    }
 
     m_image->set_name("Voxelizer::m_image");
 
@@ -38,6 +45,7 @@ Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3
     create_reset_instance_compute_pipeline_state(backend);
     create_visualizer_compute_pipeline_state(backend);
     create_visualizer_graphics_pipeline_state(backend);
+    create_generate_mip_maps_compute_pipeline_state(backend);
 }
 
 Voxelizer::~Voxelizer()
@@ -105,6 +113,11 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ds_layout_image->set_name("Voxelizer::m_ds_layout_image");
 
     DW_ZERO_MEMORY(desc);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_mip_level_count, VK_SHADER_STAGE_COMPUTE_BIT);
+    m_ds_layout_voxel_grid_mip_maps = dw::vk::DescriptorSetLayout::create(backend, desc);
+    m_ds_layout_voxel_grid_mip_maps->set_name("Voxelizer::m_ds_layout_voxel_grid_mip_maps");
+
+    DW_ZERO_MEMORY(desc);
     desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT);
     m_ds_layout_instance_buffer = dw::vk::DescriptorSetLayout::create(backend, desc);
     m_ds_layout_instance_buffer->set_name("Voxelizer::m_ds_layout_instance_buffer");
@@ -120,6 +133,7 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ds_layout_indirect_buffer->set_name("Voxelizer::m_ds_layout_indirect_buffer");
 
     m_ds_image                 = backend->allocate_descriptor_set(m_ds_layout_image);
+    m_ds_voxel_grid_mip_maps   = backend->allocate_descriptor_set(m_ds_layout_voxel_grid_mip_maps);
     m_ds_instance_color_buffer = backend->allocate_descriptor_set(m_ds_layout_instance_color_buffer);
     m_ds_instance_buffer       = backend->allocate_descriptor_set(m_ds_layout_instance_buffer);
     m_ds_indirect_buffer       = backend->allocate_descriptor_set(m_ds_layout_indirect_buffer);
@@ -129,6 +143,7 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ds_data                  = backend->allocate_descriptor_set(m_ds_layout_ubo_dynamic);
 
     m_ds_image->set_name("Voxelizer::m_ds_image");
+    m_ds_voxel_grid_mip_maps->set_name("Voxelizer::m_ds_voxel_grid_mip_maps");
     m_ds_instance_color_buffer->set_name("Voxelizer::m_ds_instance_color_buffer");
     m_ds_instance_buffer->set_name("Voxelizer::m_ds_instance_buffer");
     m_ds_indirect_buffer->set_name("Voxelizer::m_ds_indirect_buffer");
@@ -155,6 +170,30 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     write_data.pImageInfo      = &image_info;
     write_data.dstBinding      = 0;
     write_data.dstSet          = m_ds_image->handle();
+
+    vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
+
+    // Voxel Grid Mip Maps
+
+    std::vector<VkDescriptorImageInfo> image_infos;
+
+    for (int i = 0; i < m_mip_level_count; i++)
+    {
+        DW_ZERO_MEMORY(image_info);
+
+        image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        image_info.imageView   = m_image_views_mip_levels[i]->handle();
+        image_info.sampler     = nullptr;
+
+        image_infos.push_back(image_info);
+	}
+    
+    write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_data.descriptorCount = m_mip_level_count;
+    write_data.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    write_data.pImageInfo      = image_infos.data();
+    write_data.dstBinding      = 0;
+    write_data.dstSet          = m_ds_voxel_grid_mip_maps->handle();
 
     vkUpdateDescriptorSets(backend->device(), 1, &write_data, 0, nullptr);
 
@@ -274,7 +313,7 @@ void Voxelizer::transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
     barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
     barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
     barrier.subresourceRange.baseMipLevel   = 0;
-    barrier.subresourceRange.levelCount     = 1;
+    barrier.subresourceRange.levelCount     = m_mip_level_count;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount     = 1;
 
@@ -314,7 +353,7 @@ void Voxelizer::reset_voxelization_image_memory_barrier_voxel_grid(dw::vk::Comma
     vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
-void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
+void Voxelizer::pre_mip_map_image_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     VkImageMemoryBarrier barrier            = {};
     barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -328,6 +367,26 @@ void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::v
     barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
     barrier.subresourceRange.baseMipLevel   = 0;
     barrier.subresourceRange.levelCount     = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount     = 1;
+
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
+}
+
+void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+    VkImageMemoryBarrier barrier            = {};
+    barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.image                           = m_image->handle();
+    barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.srcAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+    barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel   = 0;
+    barrier.subresourceRange.levelCount     = m_mip_level_count;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount     = 1;
 
@@ -430,6 +489,20 @@ void Voxelizer::create_reset_instance_compute_pipeline_state(dw::vk::Backend::Pt
 
     pso_desc.set_pipeline_layout(m_reset_instance_compute_pipeline_layout);
     m_reset_instance_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
+}
+
+void Voxelizer::create_generate_mip_maps_compute_pipeline_state(dw::vk::Backend::Ptr backend)
+{
+    dw::vk::ShaderModule::Ptr     cs = dw::vk::ShaderModule::create_from_file(backend, "shaders/generate_mip_maps.comp.spv");
+    dw::vk::ComputePipeline::Desc pso_desc;
+    pso_desc.set_shader_stage(cs, "main");
+
+    dw::vk::PipelineLayout::Desc pl_desc;
+    pl_desc.add_descriptor_set_layout(m_ds_layout_voxel_grid_mip_maps);
+    m_generate_mip_maps_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
+
+    pso_desc.set_pipeline_layout(m_generate_mip_maps_pipeline_layout);
+    m_generate_mip_maps_compute_pipeline = dw::vk::ComputePipeline::create(backend, pso_desc);
 }
 
 void Voxelizer::create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr backend)
@@ -670,6 +743,13 @@ void Voxelizer::dispatch_visualization_compute_shader(dw::vk::Backend::Ptr backe
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_visualizer_compute_pipeline_layout->handle(), 3, 1, &m_ds_data->handle(), 1, &dynamic_offset);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_visualizer_compute_pipeline_layout->handle(), 4, 1, &m_ds_instance_color_buffer->handle(), 0, nullptr);
     vkCmdDispatch(cmd_buf->handle(), get_work_groups_dim(), get_work_groups_dim(), get_work_groups_dim());
+}
+
+void Voxelizer::generate_mip_maps(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+    vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_generate_mip_maps_compute_pipeline->handle());
+    vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_generate_mip_maps_pipeline_layout->handle(), 0, 1, &m_ds_voxel_grid_mip_maps->handle(), 0, nullptr);
+    vkCmdDispatch(cmd_buf->handle(), m_voxels_per_side / 4, m_voxels_per_side / 4, m_voxels_per_side / 4);
 }
 
 AABB Voxelizer::get_AABB() const

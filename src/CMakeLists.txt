@@ -41,7 +41,8 @@ set(SHADER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/shader/reset_instance.comp
     ${PROJECT_SOURCE_DIR}/src/shader/voxel_vis.comp
     ${PROJECT_SOURCE_DIR}/src/shader/voxel_vis.vert 
-    ${PROJECT_SOURCE_DIR}/src/shader/voxel_vis.frag)
+    ${PROJECT_SOURCE_DIR}/src/shader/voxel_vis.frag
+    ${PROJECT_SOURCE_DIR}/src/shader/generate_mip_maps.comp)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 

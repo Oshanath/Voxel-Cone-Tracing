@@ -59,21 +59,27 @@ public:
 
 	dw::vk::Image::Ptr			  m_image;
 	dw::vk::ImageView::Ptr		  m_image_view;
+	std::vector<dw::vk::ImageView::Ptr>		  m_image_views_mip_levels;
 	const uint32_t m_voxels_per_side;
 	glm::vec3 m_AABB_min, m_AABB_max;
 	glm::vec3 m_center;
 	float m_length;
 	const float m_voxel_width;
+	uint32_t m_mip_level_count;
 
 	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_image;
+	dw::vk::DescriptorSetLayout::Ptr m_ds_layout_voxel_grid_mip_maps;
 	dw::vk::DescriptorSet::Ptr       m_ds_image;
+	dw::vk::DescriptorSet::Ptr       m_ds_voxel_grid_mip_maps;
 
 	dw::vk::PipelineLayout::Ptr   m_reset_compute_pipeline_layout;
 	dw::vk::PipelineLayout::Ptr   m_visualizer_compute_pipeline_layout;
 	dw::vk::PipelineLayout::Ptr   m_visualizer_graphics_pipeline_layout;
+	dw::vk::PipelineLayout::Ptr   m_generate_mip_maps_pipeline_layout;
 	dw::vk::ComputePipeline::Ptr  m_reset_compute_pipeline;
 	dw::vk::ComputePipeline::Ptr  m_visualizer_compute_pipeline;
 	dw::vk::GraphicsPipeline::Ptr m_visualizer_graphics_pipeline;
+	dw::vk::ComputePipeline::Ptr  m_generate_mip_maps_compute_pipeline;
 	dw::vk::Framebuffer::Ptr      m_framebuffer;
 	dw::vk::RenderPass::Ptr       m_render_pass;
 
@@ -110,6 +116,7 @@ public:
 	int get_work_groups_dim();
 	void reset_voxelization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void voxelization_visualization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
+	void pre_mip_map_image_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void reset_instance_buffer(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void begin_render_visualizer(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Backend::Ptr backend);
 	void render_voxels(dw::vk::CommandBuffer::Ptr cmd_buf);
@@ -119,8 +126,10 @@ public:
 	void create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr backend);
 	void create_voxel_reset_compute_pipeline_state(dw::vk::Backend::Ptr backend);
 	void create_reset_instance_compute_pipeline_state(dw::vk::Backend::Ptr backend);
+	void create_generate_mip_maps_compute_pipeline_state(dw::vk::Backend::Ptr backend);
 	void create_visualizer_compute_pipeline_state(dw::vk::Backend::Ptr backend);
 	void dispatch_visualization_compute_shader(dw::vk::Backend::Ptr backend, dw::vk::CommandBuffer::Ptr cmd_buf);
+	void generate_mip_maps(dw::vk::CommandBuffer::Ptr cmd_buf);
 	AABB get_AABB() const;
 
 protected:
