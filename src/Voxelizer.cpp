@@ -749,7 +749,7 @@ void Voxelizer::generate_mip_maps(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_generate_mip_maps_compute_pipeline->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_generate_mip_maps_pipeline_layout->handle(), 0, 1, &m_ds_voxel_grid_mip_maps->handle(), 0, nullptr);
-    vkCmdDispatch(cmd_buf->handle(), m_voxels_per_side / 4, m_voxels_per_side / 4, m_voxels_per_side / 4);
+    vkCmdDispatch(cmd_buf->handle(), m_voxels_per_side / 8, m_voxels_per_side / 8, m_voxels_per_side / 8);
 }
 
 AABB Voxelizer::get_AABB() const
