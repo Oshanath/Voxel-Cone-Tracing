@@ -504,7 +504,8 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     {
         m_voxelizer->transition_voxel_grid(cmd_buf);
         m_voxelizer->reset_voxel_grid(cmd_buf);
-        m_voxelizer->reset_voxelization_image_memory_barrier_voxel_grid(cmd_buf);
+        //m_voxelizer->reset_voxelization_image_memory_barrier_voxel_grid(cmd_buf);
+        m_voxelizer->debug_barrier(cmd_buf);
 
         m_voxelizer->begin_voxelization(cmd_buf, m_vk_backend);
 
@@ -523,17 +524,21 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         }
 
         m_voxelizer->end_voxelization(cmd_buf);
+        //m_voxelizer->voxelization_visualization_image_memory_barrier_voxel_grid(cmd_buf);
+        m_voxelizer->debug_barrier(cmd_buf);
 
-        m_voxelizer->pre_mip_map_image_memory_barrier(cmd_buf);
-        m_voxelizer->generate_mip_maps(cmd_buf);
 
         m_voxelizer->reset_instance_buffer(cmd_buf);
-        m_voxelizer->reset_voxelization_buffer_memory_barrier_indirect(cmd_buf);
+        //m_voxelizer->reset_voxelization_buffer_memory_barrier_indirect(cmd_buf);
+        m_voxelizer->debug_barrier(cmd_buf);
 
-        m_voxelizer->voxelization_visualization_image_memory_barrier_voxel_grid(cmd_buf);
+        //m_voxelizer->pre_mip_map_image_memory_barrier(cmd_buf);
+        //m_voxelizer->generate_mip_maps(cmd_buf);
+
 
         m_voxelizer->dispatch_visualization_compute_shader(m_vk_backend, cmd_buf);
-        m_voxelizer->visualization_main_buffer_memory_barrier(cmd_buf);
+        //m_voxelizer->visualization_main_buffer_memory_barrier(cmd_buf);
+        m_voxelizer->debug_barrier(cmd_buf);
 
         m_voxelizer->first_time = false;
     }

@@ -401,6 +401,7 @@ void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Back
         }    
     
     }
+    debug_barrier(cmd_buf);
 
     {
         DW_SCOPED_SAMPLE("Large Triangles", cmd_buf);

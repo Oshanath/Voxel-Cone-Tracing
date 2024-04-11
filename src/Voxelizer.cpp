@@ -410,7 +410,7 @@ void Voxelizer::voxelization_visualization_image_memory_barrier_voxel_grid(dw::v
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount     = 1;
 
-    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
 void Voxelizer::reset_instance_buffer(dw::vk::CommandBuffer::Ptr cmd_buf)
@@ -419,6 +419,48 @@ void Voxelizer::reset_instance_buffer(dw::vk::CommandBuffer::Ptr cmd_buf)
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_instance_compute_pipeline->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_reset_instance_compute_pipeline_layout->handle(), 0, 1, &m_ds_indirect_buffer->handle(), 0, nullptr);
     vkCmdDispatch(cmd_buf->handle(), 1, 1, 1);
+}
+
+void Voxelizer::debug_barrier(dw::vk::CommandBuffer::Ptr cmd_buf)
+{
+    VkBufferMemoryBarrier buffer_barriers[2];
+
+    buffer_barriers[0].sType                    = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    buffer_barriers[0].buffer                   = m_indirect_buffer->handle();
+    buffer_barriers[0].srcAccessMask            = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    buffer_barriers[0].dstAccessMask            = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    buffer_barriers[0].srcQueueFamilyIndex      = VK_QUEUE_FAMILY_IGNORED;
+    buffer_barriers[0].dstQueueFamilyIndex      = VK_QUEUE_FAMILY_IGNORED;
+    buffer_barriers[0].size                     = m_indirect_buffer_size;
+    buffer_barriers[0].offset                   = 0;
+    buffer_barriers[0].pNext                    = nullptr;
+
+    buffer_barriers[1].sType                    = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    buffer_barriers[1].buffer                   = m_instance_buffer->handle();
+    buffer_barriers[1].srcAccessMask            = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    buffer_barriers[1].dstAccessMask            = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    buffer_barriers[1].srcQueueFamilyIndex      = VK_QUEUE_FAMILY_IGNORED;
+    buffer_barriers[1].dstQueueFamilyIndex      = VK_QUEUE_FAMILY_IGNORED;
+    buffer_barriers[1].size                     = m_instance_buffer_size;
+    buffer_barriers[1].offset                   = 0;
+    buffer_barriers[1].pNext                    = nullptr;
+
+    VkImageMemoryBarrier image_barrier            = {};
+    image_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    image_barrier.image                           = m_image->handle();
+    image_barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    image_barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    image_barrier.srcAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+    image_barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    image_barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    image_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+    image_barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_barrier.subresourceRange.baseMipLevel   = 0;
+    image_barrier.subresourceRange.levelCount     = m_mip_level_count;
+    image_barrier.subresourceRange.baseArrayLayer = 0;
+    image_barrier.subresourceRange.layerCount     = 1;
+
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 2, buffer_barriers, 1, &image_barrier);
 }
 
 void Voxelizer::reset_init_buffer_memory_barrier_indirect(dw::vk::CommandBuffer::Ptr cmd_buf)
@@ -450,7 +492,7 @@ void Voxelizer::reset_voxelization_buffer_memory_barrier_indirect(dw::vk::Comman
     barrier.offset                = 0;
     barrier.pNext                 = nullptr;
 
-    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
 }
 
 void Voxelizer::visualization_main_buffer_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf)
@@ -466,7 +508,7 @@ void Voxelizer::visualization_main_buffer_memory_barrier(dw::vk::CommandBuffer::
     instance_buffer_barrier.offset                = 0;
     instance_buffer_barrier.pNext                 = nullptr;
 
-    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &instance_buffer_barrier, 0, nullptr);
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &instance_buffer_barrier, 0, nullptr);
 
     VkBufferMemoryBarrier color_buffer_barrier = {};
     color_buffer_barrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;

@@ -114,6 +114,7 @@ public:
 	void transition_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void reset_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	int get_work_groups_dim();
+	void debug_barrier(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void reset_voxelization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void voxelization_visualization_image_memory_barrier_voxel_grid(dw::vk::CommandBuffer::Ptr cmd_buf);
 	void pre_mip_map_image_memory_barrier(dw::vk::CommandBuffer::Ptr cmd_buf);
