@@ -75,11 +75,6 @@ void main(){
     float z_dim = max_z - min_z;
     float mindim = min(min(x_dim, y_dim), z_dim);
 
-    // 0 is first vertex, 1 is left and 2 is right
-    vec3 voxel_1_center = _min + vertex1_voxel * voxel_width + vec3(voxel_width / 2.0);
-    vec3 voxel_2_center = _min + vertex2_voxel * voxel_width + vec3(voxel_width / 2.0);
-    vec3 voxel_3_center = _min + vertex3_voxel * voxel_width + vec3(voxel_width / 2.0);
-
     // z is the axis with the smallest change in coords
     // y is the axis with the largest change in coords
     uint x, y, z;

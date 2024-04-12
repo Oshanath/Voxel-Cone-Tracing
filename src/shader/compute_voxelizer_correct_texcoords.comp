@@ -62,15 +62,15 @@ void main()
     ivec3 vertex3_voxel = ivec3((vertex3_world.xyz - _min) / voxel_width);
 
     // Check if the triangle is outside the voxel grid
-	if (vertex1_world.x < _min.x || vertex1_world.x > _max.x) return;
-    if (vertex1_world.y < _min.y || vertex1_world.y > _max.y) return;
-    if (vertex1_world.z < _min.z || vertex1_world.z > _max.z) return;
-    if (vertex2_world.x < _min.x || vertex2_world.x > _max.x) return;
-    if (vertex2_world.y < _min.y || vertex2_world.y > _max.y) return;
-    if (vertex2_world.z < _min.z || vertex2_world.z > _max.z) return;
-    if (vertex3_world.x < _min.x || vertex3_world.x > _max.x) return;
-    if (vertex3_world.y < _min.y || vertex3_world.y > _max.y) return;
-    if (vertex3_world.z < _min.z || vertex3_world.z > _max.z) return;
+	//if (vertex1_world.x < _min.x || vertex1_world.x > _max.x) return;
+    //if (vertex1_world.y < _min.y || vertex1_world.y > _max.y) return;
+    //if (vertex1_world.z < _min.z || vertex1_world.z > _max.z) return;
+    //if (vertex2_world.x < _min.x || vertex2_world.x > _max.x) return;
+    //if (vertex2_world.y < _min.y || vertex2_world.y > _max.y) return;
+    //if (vertex2_world.z < _min.z || vertex2_world.z > _max.z) return;
+    //if (vertex3_world.x < _min.x || vertex3_world.x > _max.x) return;
+    //if (vertex3_world.y < _min.y || vertex3_world.y > _max.y) return;
+    //if (vertex3_world.z < _min.z || vertex3_world.z > _max.z) return;
 
     uint min_x = min(min(vertex1_voxel.x, vertex2_voxel.x), vertex3_voxel.x);
     uint min_y = min(min(vertex1_voxel.y, vertex2_voxel.y), vertex3_voxel.y);
@@ -83,14 +83,6 @@ void main()
     uint y_dim = max_y - min_y + 1;
     uint z_dim = max_z - min_z + 1;
     float mindim = min(min(x_dim, y_dim), z_dim);
-
-    #define LARGE_TRIANGLE_VOXEL_THRESHOLD 15
-    #define WORKGROUP_SIZE 64
-
-    // 0 is first vertex, 1 is left and 2 is right
-    vec3 voxel_1_center = _min + vertex1_voxel * voxel_width + vec3(voxel_width / 2.0);
-    vec3 voxel_2_center = _min + vertex2_voxel * voxel_width + vec3(voxel_width / 2.0);
-    vec3 voxel_3_center = _min + vertex3_voxel * voxel_width + vec3(voxel_width / 2.0);
 
     // z is the axis with the smallest change in coords
     // y is the axis with the largest change in coords
@@ -151,8 +143,10 @@ void main()
     int y_dim_voxel = max_y_voxel - min_y_voxel + 1;
     int voxel_count = x_dim_voxel * y_dim_voxel;
 
-    // Loop over the voxels in the bounding box of the triangle
-    if (x_dim * y_dim * z_dim < LARGE_TRIANGLE_VOXEL_THRESHOLD)
+    #define LARGE_TRIANGLE_VOXEL_THRESHOLD 15
+    #define WORKGROUP_SIZE 64
+
+    if (x_dim_voxel * y_dim_voxel < LARGE_TRIANGLE_VOXEL_THRESHOLD)
     {
         for(int i = min_x_voxel; i <= max_x_voxel; i++){
             for(int j = min_y_voxel; j <= max_y_voxel; j++){
@@ -179,7 +173,7 @@ void main()
         }
     }
     else{
-        uint workgroup_count = (x_dim * y_dim * z_dim) / WORKGROUP_SIZE + 1;
+        uint workgroup_count = (x_dim_voxel * y_dim_voxel) / WORKGROUP_SIZE + 1;
         uint large_triangle_index = atomicAdd(command.x, workgroup_count);
 
         for(uint i = 0; i < workgroup_count; i++){
