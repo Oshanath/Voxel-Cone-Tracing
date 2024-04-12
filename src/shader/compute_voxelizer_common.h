@@ -106,19 +106,19 @@ bool voxel_triangle_collision_test(vec3 u0, vec3 u1, vec3 u2, ivec3 voxel, float
     u1 -= c;
     u2 -= c;
 
-    if (test_axis(A0, u0, u1, u2, a)) return false;
-    if (test_axis(A1, u0, u1, u2, a)) return false;
-    if (test_axis(A2, u0, u1, u2, a)) return false;
-    if (test_axis(normalize(cross(A0, e0)), u0, u1, u2, a)) return false;
-    if (test_axis(normalize(cross(A0, e1)), u0, u1, u2, a)) return false;
-    if (test_axis(normalize(cross(A0, e2)), u0, u1, u2, a)) return false;
-    if (test_axis(normalize(cross(A1, e0)), u0, u1, u2, a)) return false;
-    if (test_axis(normalize(cross(A1, e1)), u0, u1, u2, a)) return false;
-    if (test_axis(normalize(cross(A1, e2)), u0, u1, u2, a)) return false;
-    if (test_axis(normalize(cross(A2, e0)), u0, u1, u2, a)) return false;
-    if (test_axis(normalize(cross(A2, e1)), u0, u1, u2, a)) return false;
-    if (test_axis(normalize(cross(A2, e2)), u0, u1, u2, a)) return false;
-    if (test_axis(normalize(n), u0, u1, u2, a)) return false;
+    if (test_axis(A0, u0, u1, u2, voxel_width)) return false;
+    if (test_axis(A1, u0, u1, u2, voxel_width)) return false;
+    if (test_axis(A2, u0, u1, u2, voxel_width)) return false;
+    if (test_axis(normalize(cross(A0, e0)), u0, u1, u2, voxel_width)) return false;
+    if (test_axis(normalize(cross(A0, e1)), u0, u1, u2, voxel_width)) return false;
+    if (test_axis(normalize(cross(A0, e2)), u0, u1, u2, voxel_width)) return false;
+    if (test_axis(normalize(cross(A1, e0)), u0, u1, u2, voxel_width)) return false;
+    if (test_axis(normalize(cross(A1, e1)), u0, u1, u2, voxel_width)) return false;
+    if (test_axis(normalize(cross(A1, e2)), u0, u1, u2, voxel_width)) return false;
+    if (test_axis(normalize(cross(A2, e0)), u0, u1, u2, voxel_width)) return false;
+    if (test_axis(normalize(cross(A2, e1)), u0, u1, u2, voxel_width)) return false;
+    if (test_axis(normalize(cross(A2, e2)), u0, u1, u2, voxel_width)) return false;
+    if (test_axis(normalize(n), u0, u1, u2, voxel_width)) return false;
     return true;
 }
 

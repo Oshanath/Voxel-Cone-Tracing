@@ -89,8 +89,6 @@ void main()
         uint large_triangle_index = atomicAdd(command.x, workgroup_count);
 
         for(uint i = 0; i < workgroup_count; i++){
-            //if(index == 262264)
-                //debugPrintfEXT("triangle index = %d, inner index = %d", index, i);
             large_triangles[large_triangle_index + i].triangle_index = index; // change struct to include both triangle index and per triangle index
             large_triangles[large_triangle_index + i].inner_triangle_index = i;
         }

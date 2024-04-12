@@ -151,16 +151,16 @@ void main(){
 
         index += NUM_THREADS;
 
-        float z_value = plane_x_coefficient * i + plane_y_coefficient * j + plane_constant;
+        float z_value = plane_x_coefficient * (float(i) + 0.5) + plane_y_coefficient * (float(j) + 0.5) + plane_constant;
 
         ivec3 voxel_coord;
         voxel_coord[x] = i;
         voxel_coord[y] = j;
         voxel_coord[z] = int(z_value);
 
+        if(!voxel_triangle_collision_test(vertex1_world.xyz, vertex2_world.xyz, vertex3_world.xyz, voxel_coord, voxel_width, _min)) return;
+
         vec3 barycentric = get_barycentric_coordinates(vertex1_voxel_space, vertex2_voxel_space, vertex3_voxel_space, vec3(voxel_coord));
-        if(barycentric.x < 0 || barycentric.y < 0 || barycentric.z < 0)
-		    return;
 
         vec2 texcoord = vec2(barycentric.x * vertex1.texcoord.x + barycentric.y * vertex2.texcoord.x + barycentric.z * vertex3.texcoord.x,
                                 barycentric.x * vertex1.texcoord.y + barycentric.y * vertex2.texcoord.y + barycentric.z * vertex3.texcoord.y);
