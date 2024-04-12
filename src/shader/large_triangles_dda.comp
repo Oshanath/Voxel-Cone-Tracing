@@ -139,8 +139,6 @@ void main(){
     int y_dim_voxel = max_y_voxel - min_y_voxel + 1;
     int voxel_count = x_dim_voxel * y_dim_voxel;
 
-    uint count = uint(float(voxel_count) / float(NUM_THREADS)) + 1;
-
     uint inner_index = large_triangles[gl_WorkGroupID.x].inner_triangle_index;
     int index = int(gl_LocalInvocationID.x + inner_index * NUM_THREADS);
 
