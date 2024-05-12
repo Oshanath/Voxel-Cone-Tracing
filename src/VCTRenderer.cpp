@@ -130,8 +130,8 @@ dw::AppSettings VCTRenderer::intial_app_settings()
     // Set custom settings here...
     dw::AppSettings settings;
 
-    settings.width       = 1280;
-    settings.height      = 720;
+    settings.width       = 1920;
+    settings.height      = 1080;
     settings.title       = "Voxel Cone Tracing Demo (Vulkan)";
     settings.ray_tracing = false;
     settings.fullscreen  = false;
@@ -533,8 +533,9 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         m_voxelizer->debug_barrier(cmd_buf);
 
         //m_voxelizer->pre_mip_map_image_memory_barrier(cmd_buf);
-        //m_voxelizer->generate_mip_maps(cmd_buf);
+        m_voxelizer->generate_mip_maps(cmd_buf);
 
+        m_voxelizer->debug_barrier(cmd_buf);
 
         m_voxelizer->dispatch_visualization_compute_shader(m_vk_backend, cmd_buf);
         //m_voxelizer->visualization_main_buffer_memory_barrier(cmd_buf);
