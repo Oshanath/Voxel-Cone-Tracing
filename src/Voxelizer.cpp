@@ -72,11 +72,11 @@ float Voxelizer::get_length(glm::vec3 AABB_min, glm::vec3 AABB_max) const
 
 void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
 {
-    m_instance_buffer_size = sizeof(InstanceData) * m_voxels_per_side * m_voxels_per_side * m_voxels_per_side;
+    m_instance_buffer_size = sizeof(InstanceData) * 2000000;
     m_instance_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_instance_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
     m_instance_buffer->set_name("Voxelizer::m_instance_buffer");
 
-    m_instance_color_buffer_size = sizeof(InstanceData) * m_voxels_per_side * m_voxels_per_side * m_voxels_per_side;
+    m_instance_color_buffer_size = sizeof(InstanceData) * 2000000;
     m_instance_color_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_instance_color_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
     m_instance_color_buffer->set_name("Voxelizer::m_instance_color_buffer");
 

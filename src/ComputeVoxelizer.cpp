@@ -60,7 +60,7 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
 void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std::vector<RenderObject>& objects)
 {
     // Large triangle buffer
-    m_large_triangle_buffer_size = backend->aligned_dynamic_ubo_size(sizeof(LargeTriangle) * 1000000);
+    m_large_triangle_buffer_size = backend->aligned_dynamic_ubo_size(sizeof(LargeTriangle) * 200000);
     m_large_triangle_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_large_triangle_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
     m_large_triangle_buffer->set_name("ComputeVoxelizer::m_large_triangle_buffer");
 
