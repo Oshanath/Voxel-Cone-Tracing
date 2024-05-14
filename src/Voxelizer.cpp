@@ -438,10 +438,10 @@ void Voxelizer::debug_barrier(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     VkMemoryBarrier memory_barrier = {};
     memory_barrier.sType           = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-    memory_barrier.srcAccessMask   = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
-    memory_barrier.dstAccessMask       = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+    memory_barrier.srcAccessMask   = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    memory_barrier.dstAccessMask   = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
 
-    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 1, &memory_barrier, 0, nullptr, 1, &image_memory_barrier);
+    vkCmdPipelineBarrier(cmd_buf->handle(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_DEPENDENCY_BY_REGION_BIT, 1, &memory_barrier, 0, nullptr, 1, &image_memory_barrier);
 }
 
 void Voxelizer::reset_init_buffer_memory_barrier_indirect(dw::vk::CommandBuffer::Ptr cmd_buf)
