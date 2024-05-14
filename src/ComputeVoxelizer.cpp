@@ -9,6 +9,7 @@ ComputeVoxelizer::ComputeVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_
     create_indirect_reset_pipeline_state(backend);
     create_voxelizer_pipeline_state(backend);
     this->m_compute_voxelization_type = CORRECT_TEXCOORDS;
+    m_push_constants.large_triangel_threshold = 70;
 }
 
 void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr backend)
@@ -28,7 +29,7 @@ void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr back
         .add_descriptor_set_layout(m_ds_layout_indirect_compute_buffer)
         .add_descriptor_set_layout(m_ds_layout_large_triangle_buffer);
 
-    pl_desc.add_push_constant_range(VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants));
+    pl_desc.add_push_constant_range(VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputeVoxelizerPushConstants));
     m_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
     m_pipeline_layout->set_name("Voxelizer::m_compute_voxelizer_compute_pipeline_layout");
 
@@ -161,28 +162,29 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
 
             VkDescriptorImageInfo image_info[5];
 
-            image_info[0].sampler     = mat->m_common_sampler->handle();
-            image_info[0].imageView   = mat->m_albedo_idx != -1 ? mat->m_image_views[mat->m_albedo_idx]->handle() : mat->m_default_image_view->handle();
+            image_info[0].sampler = dw::Material::common_sampler()->handle();
+            // image_info[0].imageView   = mat->m_albedo_idx != -1 ? mat->m_image_views[mat->m_albedo_idx]->handle() : mat->m_default_image_view->handle();
+            image_info[0].imageView   = mat->albedo_image_view()->handle();
             image_info[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[0].push_back(image_info[0]);
 
-            image_info[1].sampler     = mat->m_common_sampler->handle();
-            image_info[1].imageView   = mat->m_normal_idx != -1 ? mat->m_image_views[mat->m_normal_idx]->handle() : mat->m_default_image_view->handle();
+            image_info[1].sampler     = dw::Material::common_sampler()->handle();
+            image_info[1].imageView   = mat->albedo_image_view()->handle();
             image_info[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[1].push_back(image_info[1]);
 
-            image_info[2].sampler     = mat->m_common_sampler->handle();
-            image_info[2].imageView   = mat->m_roughness_idx != -1 ? mat->m_image_views[mat->m_roughness_idx]->handle() : mat->m_default_image_view->handle();
+            image_info[2].sampler     = dw::Material::common_sampler()->handle();
+            image_info[2].imageView   = mat->albedo_image_view()->handle();
             image_info[2].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[2].push_back(image_info[2]);
 
-            image_info[3].sampler     = mat->m_common_sampler->handle();
-            image_info[3].imageView   = mat->m_metallic_idx != -1 ? mat->m_image_views[mat->m_metallic_idx]->handle() : mat->m_default_image_view->handle();
+            image_info[3].sampler     = dw::Material::common_sampler()->handle();
+            image_info[3].imageView   = mat->albedo_image_view()->handle();
             image_info[3].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[3].push_back(image_info[3]);
 
-            image_info[4].sampler     = mat->m_common_sampler->handle();
-            image_info[4].imageView   = mat->m_emissive_idx != -1 ? mat->m_image_views[mat->m_emissive_idx]->handle() : mat->m_default_image_view->handle();
+            image_info[4].sampler     = dw::Material::common_sampler()->handle();
+            image_info[4].imageView   = mat->albedo_image_view()->handle();
             image_info[4].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[4].push_back(image_info[4]);
 
@@ -193,8 +195,6 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
             }
         }
     }
-
-    std::cout << "submesh count = " << submesh_count << std::endl;
 
     VkWriteDescriptorSet write_data[5];
     for (int i = 0; i < 5; i++) { DW_ZERO_MEMORY(write_data[i]); }
@@ -392,17 +392,15 @@ void ComputeVoxelizer::voxelize(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Back
             int triangle_count  = mesh->indices().size() / 3;
             int workgroup_count = ceil(double(triangle_count) / double(local_size));
 
-            MeshPushConstants push_constants;
-            push_constants.model          = object.get_model();
-            push_constants.triangle_count = triangle_count;
+            m_push_constants.model          = object.get_model();
+            m_push_constants.triangle_count = triangle_count;
 
-            vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(MeshPushConstants), &push_constants);
+            vkCmdPushConstants(cmd_buf->handle(), m_pipeline_layout->handle(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputeVoxelizerPushConstants), &m_push_constants);
             vkCmdDispatch(cmd_buf->handle(), workgroup_count, 1, 1);
         }    
     
     }
     debug_barrier(cmd_buf);
-
     {
         DW_SCOPED_SAMPLE("Large Triangles", cmd_buf);
         begin_large_triangle_voxelization(cmd_buf, backend);

@@ -86,6 +86,53 @@ void VCTRenderer::update(double delta)
     VkCommandBufferBeginInfo begin_info;
     DW_ZERO_MEMORY(begin_info);
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    ImGui::Checkbox("Voxelization Visualization", &m_voxelization_visualization_enabled);
+
+    static int res_group = 0;
+
+    if (m_voxelization_resolution == 64)
+                res_group = 0;
+    else if (m_voxelization_resolution == 128)
+                res_group = 1;
+    else if (m_voxelization_resolution == 256)
+                res_group = 2;
+    else if (m_voxelization_resolution == 512)
+                res_group = 3;
+
+    ImGui::Text("\nVoxelization resolution");
+    if (ImGui::RadioButton("64", &res_group, 0))
+        revoxelize(64);
+    if (ImGui::RadioButton("128", &res_group, 1))
+        revoxelize(128);
+    if (ImGui::RadioButton("256", &res_group, 2))
+        revoxelize(256);
+    if (ImGui::RadioButton("512", &res_group, 3))
+        revoxelize(512);
+
+    static int type_group = 1;
+
+    if (m_voxelization_type == COMPUTE_SHADER_VOXELIZATION)
+                type_group = 1;
+    else if (m_voxelization_type == GEOMETRY_SHADER_VOXELIZATION)
+                type_group = 0;
+
+    ImGui::Text("\nVoxelization type");
+    if (ImGui::RadioButton("Geometry", &type_group, 0))
+    {
+        revoxelize(GEOMETRY_SHADER_VOXELIZATION);
+    }
+    if (ImGui::RadioButton("Compute", &type_group, 1))
+    {
+        revoxelize(COMPUTE_SHADER_VOXELIZATION);
+    }
+
+    if (m_voxelizer->m_voxelization_type == COMPUTE_SHADER_VOXELIZATION)
+    {
+        ComputeVoxelizer* voxelization_ptr = dynamic_cast<ComputeVoxelizer*>(m_voxelizer.get());
+        ImGui::InputInt("Large Triangle Threshold", &voxelization_ptr->m_push_constants.large_triangel_threshold);
+    }
+
     vkBeginCommandBuffer(cmd_buf->handle(), &begin_info);
 
     {
@@ -482,46 +529,6 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
     DW_SCOPED_SAMPLE("render", cmd_buf);
 
-    ImGui::Checkbox("Voxelization Visualization", &m_voxelization_visualization_enabled);
-
-    static int res_group = 0;
-
-    if (m_voxelization_resolution == 64)
-        res_group = 0;
-	else if (m_voxelization_resolution == 128)
-		res_group = 1;
-	else if (m_voxelization_resolution == 256)
-		res_group = 2;
-	else if (m_voxelization_resolution == 512)
-		res_group = 3;
-
-    ImGui::Text("\nVoxelization resolution");
-    if (ImGui::RadioButton("64", &res_group, 0))
-        revoxelize(64);
-    if (ImGui::RadioButton("128", &res_group, 1))
-        revoxelize(128);
-    if (ImGui::RadioButton("256", &res_group, 2))
-        revoxelize(256);
-    if (ImGui::RadioButton("512", &res_group, 3))
-        revoxelize(512);
-
-    static int type_group = 1;
-
-    if (m_voxelization_type == COMPUTE_SHADER_VOXELIZATION)
-		type_group = 1;
-	else if (m_voxelization_type == GEOMETRY_SHADER_VOXELIZATION)
-		type_group = 0;
-
-    ImGui::Text("\nVoxelization type");
-    if (ImGui::RadioButton("Geometry", &type_group, 0))
-    {
-        revoxelize(GEOMETRY_SHADER_VOXELIZATION);
-    }
-    if (ImGui::RadioButton("Compute", &type_group, 1))
-    {
-        revoxelize(COMPUTE_SHADER_VOXELIZATION);
-    }
-
     m_shadow_map->begin_render(cmd_buf, m_vk_backend);
     {
         DW_SCOPED_SAMPLE("Shadow map", cmd_buf);
@@ -542,13 +549,11 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         if (m_voxelizer->m_voxelization_type == GEOMETRY_SHADER_VOXELIZATION)
         {
             DW_SCOPED_SAMPLE("Geometry voxelizer", cmd_buf);
-            //std::cout << "Voxelizing with geometry shader\n";
             GeometryVoxelizer* voxelization_ptr = dynamic_cast<GeometryVoxelizer*>(m_voxelizer.get());
             render_objects(cmd_buf, voxelization_ptr->m_pipeline_layout);
         }
         else if (m_voxelizer->m_voxelization_type == COMPUTE_SHADER_VOXELIZATION)
         {
-            //std::cout << "Voxelizing with compute shader\n";
             ComputeVoxelizer* voxelization_ptr = dynamic_cast<ComputeVoxelizer*>(m_voxelizer.get());
             voxelization_ptr->voxelize(cmd_buf, m_vk_backend, objects);
         }

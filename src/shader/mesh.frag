@@ -29,6 +29,10 @@ layout (set = 3, binding = 0) uniform LightsUBO
 	float intensity;
 } lights;
 
+layout( push_constant ) uniform constants{
+	mat4 model;
+} pc;
+
 float ambient = 0.03;
 
 float textureProj(vec4 shadowCoord, vec2 off)

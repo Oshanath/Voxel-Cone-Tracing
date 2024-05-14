@@ -73,6 +73,7 @@ layout(push_constant) uniform constants
 {
     mat4 model;
     int  triangle_count;
+    int  large_triangle_threshold;
 }
 pc;
 

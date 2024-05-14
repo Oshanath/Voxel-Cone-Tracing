@@ -14,9 +14,17 @@ struct LargeTriangle
 	uint32_t inner_triangle_index;
 };
 
+struct ComputeVoxelizerPushConstants
+{
+	glm::mat4 model;
+	int triangle_count;
+	int large_triangel_threshold;
+};
+
 class ComputeVoxelizer : public Voxelizer
 {
 public:
+	ComputeVoxelizerPushConstants m_push_constants;
 
 	ComputeVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, uint32_t m_viewport_width, uint32_t m_viewport_height, std::vector<RenderObject>& objects);
 	void create_voxelizer_pipeline_state(dw::vk::Backend::Ptr backend);
