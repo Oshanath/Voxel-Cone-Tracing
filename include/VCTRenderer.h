@@ -44,7 +44,7 @@ struct Lights
 class VCTRenderer : public dw::Application
 {
 protected:
-    void create_voxelizer(int resolution);
+    void create_voxelizer();
     bool init(int argc, const char* argv[]) override;
     void update(double delta) override;
     void shutdown() override;
@@ -56,7 +56,6 @@ protected:
     void mouse_pressed(int code) override;
     void mouse_released(int code) override;
 
-private:
     inline bool create_shaders();
 
     bool create_uniform_buffers();
@@ -73,13 +72,13 @@ private:
     void render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::PipelineLayout::Ptr pipeline_layout);
     void begin_render_main(dw::vk::CommandBuffer::Ptr cmd_buf);
     void revoxelize(int resolution);
+    void revoxelize(VoxelizationType type);
     void render(dw::vk::CommandBuffer::Ptr cmd_buf);
     void update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf);
     void update_camera();
 
     VkSampleCountFlagBits getMaxUsableSampleCount();
 
-private:
     // GPU resources.
     size_t                           m_ubo_size_main;
     size_t						     m_ubo_size_lights;
@@ -121,6 +120,7 @@ private:
     // Shadow map
     std::unique_ptr<ShadowMap> m_shadow_map;
     float m_shadow_map_size = 10000.0f;
+    VoxelizationType m_voxelization_type = VoxelizationType::COMPUTE_SHADER_VOXELIZATION;
 
     // Debug draw
     dw::DebugDraw m_debug_draw;
@@ -130,8 +130,7 @@ private:
 
     // VCT
     std::shared_ptr<Voxelizer> m_voxelizer;
-    std::shared_ptr<ComputeVoxelizer> m_compute_voxelizer;
-    std::shared_ptr<GeometryVoxelizer> m_geometry_voxelizer;
+    uint32_t m_voxelization_resolution = 512;
     std::vector<dw::vk::Fence::Ptr> m_compute_fences;
     bool m_voxelization_visualization_enabled = false;
 };

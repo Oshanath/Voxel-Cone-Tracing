@@ -1,28 +1,31 @@
 #include "VCTRenderer.h"
 #include <array>
 
-void VCTRenderer::create_voxelizer(int resolution)
+void VCTRenderer::create_voxelizer()
 {
-    m_compute_voxelizer = std::make_shared<ComputeVoxelizer>(
-        m_vk_backend,
-        glm::vec3(-1963.12f, -160.925f, 1119.94f),
-        glm::vec3(1950.5f, 1543.24f, -1285.63f),
-        resolution,
-        m_meshes[0]->vertex_input_state_desc(),
-        m_width,
-        m_height,
-        objects);
-
-    m_geometry_voxelizer = std::make_shared<GeometryVoxelizer>(
-		m_vk_backend,
-		glm::vec3(-1963.12f, -160.925f, 1119.94f),
-		glm::vec3(1950.5f, 1543.24f, -1285.63f),
-		resolution,
-		m_meshes[0]->vertex_input_state_desc(),
-		m_width,
-		m_height);
-
-    m_voxelizer = m_compute_voxelizer;
+    if (m_voxelization_type == COMPUTE_SHADER_VOXELIZATION)
+    {
+        m_voxelizer = std::make_shared<ComputeVoxelizer>(
+            m_vk_backend,
+            glm::vec3(-1963.12f, -160.925f, 1119.94f),
+            glm::vec3(1950.5f, 1543.24f, -1285.63f),
+            m_voxelization_resolution,
+            m_meshes[0]->vertex_input_state_desc(),
+            m_width,
+            m_height,
+            objects);
+    }
+    else if (m_voxelization_type == GEOMETRY_SHADER_VOXELIZATION)
+	{
+        m_voxelizer = std::make_shared<GeometryVoxelizer>(
+            m_vk_backend,
+            glm::vec3(-1963.12f, -160.925f, 1119.94f),
+            glm::vec3(1950.5f, 1543.24f, -1285.63f),
+            m_voxelization_resolution,
+            m_meshes[0]->vertex_input_state_desc(),
+            m_width,
+            m_height);
+	}
 }
 
 bool VCTRenderer::init(int argc, const char* argv[])
@@ -47,7 +50,7 @@ bool VCTRenderer::init(int argc, const char* argv[])
     m_shadow_map->set_near_plane(1.0f);
     m_shadow_map->set_far_plane(8000.0f);
 
-    create_voxelizer(64);
+    create_voxelizer();
 
     create_descriptor_sets();
     write_descriptor_sets();
@@ -105,6 +108,8 @@ void VCTRenderer::update(double delta)
 
 void VCTRenderer::shutdown()
 {
+    vkDeviceWaitIdle(m_vk_backend->device());
+
     for (auto& mesh : m_meshes)
         mesh.reset();
     for (auto& object : objects)
@@ -119,8 +124,6 @@ void VCTRenderer::shutdown()
     m_ubo_transforms_main.reset();
     m_ubo_lights.reset();
     m_shadow_map.reset();
-    m_compute_voxelizer.reset();
-    m_geometry_voxelizer.reset();
     m_voxelizer.reset();
     m_debug_draw.shutdown();
 }
@@ -455,9 +458,24 @@ void VCTRenderer::begin_render_main(dw::vk::CommandBuffer::Ptr cmd_buf)
 
 void VCTRenderer::revoxelize(int resolution)
 {
-    /*vkDeviceWaitIdle(m_vk_backend->device());
-    m_voxelizer.reset();*/
-    create_voxelizer(resolution);
+    if (m_voxelizer->m_voxels_per_side != resolution)
+    {
+        m_voxelization_resolution = resolution;
+        vkDeviceWaitIdle(m_vk_backend->device());
+        m_voxelizer.reset();
+        create_voxelizer();
+    }
+}
+
+void VCTRenderer::revoxelize(VoxelizationType type)
+{
+    if (m_voxelizer->m_voxelization_type != type)
+    {
+        m_voxelization_type = type;
+        vkDeviceWaitIdle(m_vk_backend->device());
+        m_voxelizer.reset();
+        create_voxelizer();
+    }
 }
 
 void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
@@ -466,12 +484,17 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     ImGui::Checkbox("Voxelization Visualization", &m_voxelization_visualization_enabled);
 
-    /*if (ImGui::Checkbox("Voxelization wireframe", &m_voxelizer->m_voxelization_visualization_wireframe))
-        m_voxelizer->create_visualizer_graphics_pipeline_state(m_vk_backend);*/
-    ImGui::Checkbox("Voxelization wireframe", &m_voxelizer->m_voxelization_visualization_wireframe);
-
-
     static int res_group = 0;
+
+    if (m_voxelization_resolution == 64)
+        res_group = 0;
+	else if (m_voxelization_resolution == 128)
+		res_group = 1;
+	else if (m_voxelization_resolution == 256)
+		res_group = 2;
+	else if (m_voxelization_resolution == 512)
+		res_group = 3;
+
     ImGui::Text("\nVoxelization resolution");
     if (ImGui::RadioButton("64", &res_group, 0))
         revoxelize(64);
@@ -483,13 +506,20 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         revoxelize(512);
 
     static int type_group = 1;
+
+    if (m_voxelization_type == COMPUTE_SHADER_VOXELIZATION)
+		type_group = 1;
+	else if (m_voxelization_type == GEOMETRY_SHADER_VOXELIZATION)
+		type_group = 0;
+
     ImGui::Text("\nVoxelization type");
     if (ImGui::RadioButton("Geometry", &type_group, 0))
-		m_voxelizer = m_geometry_voxelizer;
-    if (ImGui::RadioButton("Compute with correct texcoords", &type_group, 1))
     {
-        m_voxelizer = m_compute_voxelizer;
-        m_compute_voxelizer->set_compute_voxelization_type(CORRECT_TEXCOORDS);
+        revoxelize(GEOMETRY_SHADER_VOXELIZATION);
+    }
+    if (ImGui::RadioButton("Compute", &type_group, 1))
+    {
+        revoxelize(COMPUTE_SHADER_VOXELIZATION);
     }
 
     m_shadow_map->begin_render(cmd_buf, m_vk_backend);
@@ -564,10 +594,6 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         render_objects(cmd_buf, m_pipeline_layout_main);
     }
 
-    AABB aabb = m_voxelizer->get_AABB();
-    m_debug_draw.aabb(aabb.min, aabb.max, glm::vec3(1.0f, 1.0f, 1.0f));
-    
-    m_debug_draw.render(m_vk_backend, cmd_buf, m_width, m_height, m_main_camera->m_view_projection, m_main_camera->m_position);
 
     render_gui(cmd_buf);
     vkCmdEndRenderPass(cmd_buf->handle());

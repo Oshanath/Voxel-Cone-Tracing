@@ -3,6 +3,10 @@
 #extension GL_KHR_vulkan_glsl:enable
 
 layout(location = 0) in vec4 VS_IN_Position;
+layout(location = 1) in vec4 VS_IN_Texcoord;
+layout(location = 2) in vec4 VS_IN_Normal;
+layout(location = 3) in vec4 VS_IN_Tangent;
+layout(location = 4) in vec4 VS_IN_Bitangent;
 
 layout (set = 0, binding = 0) uniform PerFrameUBO 
 {
