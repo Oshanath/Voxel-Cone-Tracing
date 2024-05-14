@@ -19,12 +19,10 @@
 // Uniform buffer data structures.
 struct TransformsMain
 {
-    DW_ALIGNED(16)
         glm::mat4 view;
-    DW_ALIGNED(16)
         glm::mat4 projection;
-    DW_ALIGNED(16)
         glm::mat4 lightSpaceMatrix;
+        glm::vec4 camera_pos;
 };
 
 struct Light
@@ -82,17 +80,21 @@ protected:
     // GPU resources.
     size_t                           m_ubo_size_main;
     size_t						     m_ubo_size_lights;
+    size_t                           m_ubo_size_voxel_grid;
 
     dw::vk::GraphicsPipeline::Ptr    m_graphics_pipeline_main;
     dw::vk::PipelineLayout::Ptr      m_pipeline_layout_main;
 
     dw::vk::DescriptorSetLayout::Ptr m_ds_layout_ubo;
+    dw::vk::DescriptorSetLayout::Ptr m_ds_layout_voxel_grid_main;
 
     dw::vk::DescriptorSet::Ptr       m_ds_transforms_main;
     dw::vk::DescriptorSet::Ptr       m_ds_lights;
+    dw::vk::DescriptorSet::Ptr       m_ds_voxel_grid_main;
 
     dw::vk::Buffer::Ptr              m_ubo_transforms_main;
     dw::vk::Buffer::Ptr			     m_ubo_lights;
+    dw::vk::Buffer::Ptr m_ubo_voxel_grid;
 
     // Camera.
     std::unique_ptr<dw::Camera> m_main_camera;
@@ -116,6 +118,7 @@ protected:
     
     // Uniforms.
     TransformsMain m_transforms_main;
+    MeshPushConstants m_mesh_push_constants;
 
     // Shadow map
     std::unique_ptr<ShadowMap> m_shadow_map;

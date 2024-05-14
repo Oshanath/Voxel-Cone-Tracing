@@ -114,8 +114,8 @@ void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
     m_ds_layout_image->set_name("Voxelizer::m_ds_layout_image");
 
     DW_ZERO_MEMORY(desc);
-    desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_mip_level_count, VK_SHADER_STAGE_COMPUTE_BIT);
-    desc.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_mip_level_count, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+    desc.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
     m_ds_layout_voxel_grid_mip_maps = dw::vk::DescriptorSetLayout::create(backend, desc);
     m_ds_layout_voxel_grid_mip_maps->set_name("Voxelizer::m_ds_layout_voxel_grid_mip_maps");
 

@@ -76,6 +76,12 @@ bool VCTRenderer::init(int argc, const char* argv[])
     for (auto& fence : m_compute_fences)
 		fence = dw::vk::Fence::create(m_vk_backend);
 
+    m_mesh_push_constants.occlusionDecayFactor          = 0.0f;
+    m_mesh_push_constants.ambientOcclusionEnabled   = VK_FALSE;
+    m_mesh_push_constants.occlusionVisualizationEnabled = VK_FALSE;
+    m_mesh_push_constants.surfaceOffset                 = 15.719f;
+    m_mesh_push_constants.coneCutoff                    = 143.813f;
+
     return true;
 }
 
@@ -133,6 +139,13 @@ void VCTRenderer::update(double delta)
         ImGui::InputInt("Large Triangle Threshold", &voxelization_ptr->m_push_constants.large_triangel_threshold);
     }
 
+    ImGui::Text("");
+    ImGui::Checkbox("Enable Ambient Occlusion", (bool*)&m_mesh_push_constants.ambientOcclusionEnabled);
+    ImGui::Checkbox("Enable Occlusion Visualization", (bool*)&m_mesh_push_constants.occlusionVisualizationEnabled);
+    ImGui::SliderFloat("Occlusion Decay Factor", &m_mesh_push_constants.occlusionDecayFactor, 0.0f, 1.0f);
+    ImGui::SliderFloat("Surface Offset", &m_mesh_push_constants.surfaceOffset, 0.0f, 30.0f);
+    ImGui::SliderFloat("Cone Cutoff", &m_mesh_push_constants.coneCutoff, 0.0f, 2000.0f);
+
     vkBeginCommandBuffer(cmd_buf->handle(), &begin_info);
 
     {
@@ -166,10 +179,13 @@ void VCTRenderer::shutdown()
     m_graphics_pipeline_main.reset();
     m_pipeline_layout_main.reset();
     m_ds_layout_ubo.reset();
+    m_ds_layout_voxel_grid_main.reset();
     m_ds_transforms_main.reset();
+    m_ds_voxel_grid_main.reset();
     m_ds_lights.reset();
     m_ubo_transforms_main.reset();
     m_ubo_lights.reset();
+    m_ubo_voxel_grid.reset();
     m_shadow_map.reset();
     m_voxelizer.reset();
     m_debug_draw.shutdown();
@@ -199,9 +215,11 @@ bool VCTRenderer::create_uniform_buffers()
 {
     m_ubo_size_main         = m_vk_backend->aligned_dynamic_ubo_size(sizeof(TransformsMain));
     m_ubo_size_lights       = m_vk_backend->aligned_dynamic_ubo_size(sizeof(Lights));
+    m_ubo_size_voxel_grid   = m_vk_backend->aligned_dynamic_ubo_size(sizeof(VoxelizerData));
 
     m_ubo_transforms_main   = dw::vk::Buffer::create(m_vk_backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size_main * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
     m_ubo_lights            = dw::vk::Buffer::create(m_vk_backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size_lights * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    m_ubo_voxel_grid        = dw::vk::Buffer::create(m_vk_backend, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, m_ubo_size_voxel_grid * dw::vk::Backend::kMaxFramesInFlight, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     return true;
 }
@@ -214,6 +232,12 @@ void VCTRenderer::create_descriptor_set_layouts()
     m_ds_layout_ubo = dw::vk::DescriptorSetLayout::create(m_vk_backend, desc);
     m_ds_layout_ubo->set_name("Main::ds_layout_ubo");
 
+    // voxel grid
+    desc = {};
+    desc.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
+	m_ds_layout_voxel_grid_main = dw::vk::DescriptorSetLayout::create(m_vk_backend, desc);
+	m_ds_layout_voxel_grid_main->set_name("Main::ds_layout_voxel_grid");
+
 }
 
 inline void VCTRenderer::create_descriptor_sets()
@@ -223,6 +247,9 @@ inline void VCTRenderer::create_descriptor_sets()
 
     m_ds_lights            = m_vk_backend->allocate_descriptor_set(m_ds_layout_ubo);
     m_ds_lights->set_name("Main::ds_lights");
+
+    m_ds_voxel_grid_main = m_vk_backend->allocate_descriptor_set(m_ds_layout_voxel_grid_main);
+    m_ds_voxel_grid_main->set_name("Main::ds_voxel_grid_main");
 }
 
 void VCTRenderer::write_descriptor_sets()
@@ -262,6 +289,23 @@ void VCTRenderer::write_descriptor_sets()
     write_data.dstSet          = m_ds_lights->handle();
 
     vkUpdateDescriptorSets(m_vk_backend->device(), 1, &write_data, 0, nullptr);
+
+    // Voxel grid uniform buffer
+    DW_ZERO_MEMORY(buffer_info);
+	DW_ZERO_MEMORY(write_data);
+
+	buffer_info.buffer = m_ubo_voxel_grid->handle();
+	buffer_info.offset = 0;
+	buffer_info.range  = sizeof(VoxelizerData);
+
+	write_data.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write_data.descriptorCount = 1;
+	write_data.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+	write_data.pBufferInfo     = &buffer_info;
+	write_data.dstBinding      = 0;
+	write_data.dstSet          = m_ds_voxel_grid_main->handle();
+
+	vkUpdateDescriptorSets(m_vk_backend->device(), 1, &write_data, 0, nullptr);
 }
 
 void VCTRenderer::create_main_pipeline_state()
@@ -374,8 +418,10 @@ void VCTRenderer::create_main_pipeline_state()
     pl_desc.add_descriptor_set_layout(dw::Material::descriptor_set_layout())
         .add_descriptor_set_layout(m_ds_layout_ubo)
         .add_descriptor_set_layout(m_shadow_map->m_ds_layout_sampler)
-        .add_descriptor_set_layout(m_ds_layout_ubo);
-    pl_desc.add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
+        .add_descriptor_set_layout(m_ds_layout_ubo)
+        .add_descriptor_set_layout(m_voxelizer->m_ds_layout_voxel_grid_mip_maps)
+        .add_descriptor_set_layout(m_ds_layout_voxel_grid_main);
+    pl_desc.add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshPushConstants));
 
     m_pipeline_layout_main = dw::vk::PipelineLayout::create(m_vk_backend, pl_desc);
     m_pipeline_layout_main->set_name("Main::pipeline_layout_main");
@@ -434,6 +480,7 @@ void VCTRenderer::render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Pip
 
     for (auto object : objects)
     {
+        m_mesh_push_constants.model = object.get_model();
         auto mesh = object.mesh;
 
         vkCmdBindVertexBuffers(cmd_buf->handle(), 0, 1, &mesh->vertex_buffer()->handle(), &offset);
@@ -447,7 +494,7 @@ void VCTRenderer::render_objects(dw::vk::CommandBuffer::Ptr cmd_buf, dw::vk::Pip
             auto& mat     = mesh->material(submesh.mat_idx);
 
             vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout->handle(), 0, 1, &mat->descriptor_set()->handle(), 0, nullptr);
-            vkCmdPushConstants(cmd_buf->handle(), pipeline_layout->handle(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), glm::value_ptr(object.get_model()));
+            vkCmdPushConstants(cmd_buf->handle(), pipeline_layout->handle(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshPushConstants), &m_mesh_push_constants);
 
             // Issue draw call.
             vkCmdDrawIndexed(cmd_buf->handle(), submesh.index_count, 1, submesh.base_index, submesh.base_vertex, 0);
@@ -580,6 +627,7 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
     }
 
     uint32_t lights_dynamic_offset = m_ubo_size_lights * m_vk_backend->current_frame_idx();
+    uint32_t voxel_grid_dynamic_offset = m_ubo_size_voxel_grid * m_vk_backend->current_frame_idx();
     update_uniforms(cmd_buf);
 
     if (m_voxelization_visualization_enabled)
@@ -595,6 +643,8 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 1, 1, &m_ds_transforms_main->handle(), 1, &dynamic_offset);
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 2, 1, &m_shadow_map->m_ds_shadow_sampler->handle(), 0, nullptr);
         vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 3, 1, &m_ds_lights->handle(), 1, &lights_dynamic_offset);
+        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 4, 1, &m_voxelizer->m_ds_voxel_grid_mip_maps->handle(), 0, nullptr);
+        vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline_layout_main->handle(), 5, 1, &m_ds_voxel_grid_main->handle(), 1, &voxel_grid_dynamic_offset);
         DW_SCOPED_SAMPLE("Main render", cmd_buf);
         render_objects(cmd_buf, m_pipeline_layout_main);
     }
@@ -611,8 +661,16 @@ void VCTRenderer::update_uniforms(dw::vk::CommandBuffer::Ptr cmd_buf)
     m_transforms_main.view             = m_main_camera->m_view;
     m_transforms_main.projection       = m_main_camera->m_projection;
     m_transforms_main.lightSpaceMatrix = m_shadow_map->projection() * m_shadow_map->view();
+    m_transforms_main.camera_pos       = glm::vec4(m_main_camera->m_position, 1.0f);
     uint8_t* ptr                       = (uint8_t*)m_ubo_transforms_main->mapped_ptr();
     memcpy(ptr + m_ubo_size_main * m_vk_backend->current_frame_idx(), &m_transforms_main, sizeof(TransformsMain));
+
+    VoxelizerData voxelizer_data;
+    AABB          aabb = m_voxelizer->get_AABB();
+    voxelizer_data.AABB_min = glm::vec4(aabb.min, 1.0f);
+    voxelizer_data.AABB_max = glm::vec4(aabb.max, 1.0f);
+    ptr            = (uint8_t*)m_ubo_voxel_grid->mapped_ptr();
+    memcpy(ptr + m_ubo_size_voxel_grid * m_vk_backend->current_frame_idx(), &voxelizer_data, sizeof(VoxelizerData));
 
     /*m_transforms_main.view             = m_voxelizer->get_view();
     m_transforms_main.projection       = m_voxelizer->get_proj();

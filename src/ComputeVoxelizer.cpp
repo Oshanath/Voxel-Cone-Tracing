@@ -9,7 +9,7 @@ ComputeVoxelizer::ComputeVoxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_
     create_indirect_reset_pipeline_state(backend);
     create_voxelizer_pipeline_state(backend);
     this->m_compute_voxelization_type = CORRECT_TEXCOORDS;
-    m_push_constants.large_triangel_threshold = 70;
+    m_push_constants.large_triangel_threshold = 15;
 }
 
 void ComputeVoxelizer::create_voxelizer_pipeline_state(dw::vk::Backend::Ptr backend)

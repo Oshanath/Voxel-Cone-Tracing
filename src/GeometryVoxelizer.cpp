@@ -236,7 +236,7 @@ void GeometryVoxelizer::create_voxelization_pipeline_state(dw::vk::Backend::Ptr 
     pl_desc.add_descriptor_set_layout(dw::Material::descriptor_set_layout())
         .add_descriptor_set_layout(m_ds_layout_ubo_dynamic)
         .add_descriptor_set_layout(m_ds_layout_image);
-    pl_desc.add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants));
+    pl_desc.add_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshPushConstants));
 
     m_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
 

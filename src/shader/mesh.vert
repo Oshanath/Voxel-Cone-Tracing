@@ -10,9 +10,14 @@ layout (location = 0) out vec4 FS_IN_FragPos;
 layout (location = 1) out vec2 FS_IN_Texcoord;
 layout (location = 2) out vec3 FS_IN_Normal;
 
-layout( push_constant ) uniform constants
-{
+layout( push_constant ) uniform constants{
 	mat4 model;
+	uint textureIndex;
+	float occlusionDecayFactor;
+	bool ambientOcclusionEnabled;
+	bool visualizeOcclusion;
+	float surfaceOffset;
+	float coneCutoff;
 } pc;
 
 layout (set = 1, binding = 0) uniform PerFrameUBO 
