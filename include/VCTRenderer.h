@@ -133,7 +133,7 @@ protected:
 
     // VCT
     std::shared_ptr<Voxelizer> m_voxelizer;
-    uint32_t m_voxelization_resolution = 512;
+    uint32_t m_voxelization_resolution = 64;
     std::vector<dw::vk::Fence::Ptr> m_compute_fences;
     bool m_voxelization_visualization_enabled = false;
 };

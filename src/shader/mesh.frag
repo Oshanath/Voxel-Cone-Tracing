@@ -52,6 +52,7 @@ layout( push_constant ) uniform constants{
 	bool visualizeOcclusion;
 	float surfaceOffset;
 	float coneCutoff;
+	bool noTexture;
 } pc;
 
 float ambient = 0.03;
@@ -253,7 +254,12 @@ void main()
 
 	float lambert = max(0.0f, dot(n, -light_dir));
 
-    vec3 diffuse = texture(s_Diffuse, FS_IN_Texcoord).xyz;
+	vec3 diffuse;
+	if(!pc.noTexture)
+		diffuse = texture(s_Diffuse, FS_IN_Texcoord).xyz;
+	else
+		diffuse = vec3(1.0);
+
 	vec3 ambient = diffuse * ambient;
 
 	vec4 FragPosLightSpace = ubo.lightSpaceMatrix * FS_IN_FragPos;

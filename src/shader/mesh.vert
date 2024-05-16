@@ -16,8 +16,9 @@ layout( push_constant ) uniform constants{
 	float occlusionDecayFactor;
 	bool ambientOcclusionEnabled;
 	bool visualizeOcclusion;
-	float surfaceOffset;
+	float surfaceOffset; 
 	float coneCutoff;
+	bool noTexture;
 } pc;
 
 layout (set = 1, binding = 0) uniform PerFrameUBO 

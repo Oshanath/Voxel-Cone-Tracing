@@ -11,6 +11,7 @@ struct MeshPushConstants
 		VkBool32 occlusionVisualizationEnabled;
 		float surfaceOffset;
 		float coneCutoff;
+		VkBool32 noTexture;
 };
 
 struct AABB

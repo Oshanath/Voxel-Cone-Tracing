@@ -56,6 +56,7 @@ enum VoxelizationType
 class Voxelizer
 {
 public:
+	VkBool32 noTexture;
 
 	dw::vk::Image::Ptr			  m_image;
 	dw::vk::ImageView::Ptr		  m_image_view;

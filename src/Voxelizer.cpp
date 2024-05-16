@@ -1,5 +1,6 @@
 #include "Voxelizer.h"
 #include <iostream>
+#include <profiler.h>
 
 Voxelizer::Voxelizer(dw::vk::Backend::Ptr backend, glm::vec3 AABB_min, glm::vec3 AABB_max, uint32_t voxels_per_side, const dw::vk::VertexInputStateDesc& vertex_input_state, VoxelizationType voxelization_type, uint32_t viewport_width, uint32_t viewport_height) :
     m_AABB_min(AABB_min), 
@@ -72,7 +73,7 @@ float Voxelizer::get_length(glm::vec3 AABB_min, glm::vec3 AABB_max) const
 
 void Voxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend)
 {
-    m_instance_buffer_size = sizeof(InstanceData) * 2000000;
+    m_instance_buffer_size = sizeof(InstanceData) * 3000000;
     m_instance_buffer      = dw::vk::Buffer::create(backend, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, m_instance_buffer_size, VMA_MEMORY_USAGE_GPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
     m_instance_buffer->set_name("Voxelizer::m_instance_buffer");
 
@@ -682,6 +683,7 @@ void Voxelizer::create_visualizer_graphics_pipeline_state(dw::vk::Backend::Ptr b
     pl_desc.add_descriptor_set_layout(m_ds_layout_ubo_dynamic)
         .add_descriptor_set_layout(m_ds_layout_instance_buffer)
         .add_descriptor_set_layout(m_ds_layout_instance_color_buffer);
+    pl_desc.add_push_constant_range(VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(VkBool32));
 
     m_visualizer_graphics_pipeline_layout = dw::vk::PipelineLayout::create(backend, pl_desc);
 
@@ -754,6 +756,8 @@ void Voxelizer::begin_render_visualizer(dw::vk::CommandBuffer::Ptr cmd_buf, dw::
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_visualizer_graphics_pipeline_layout->handle(), 0, 1, &m_ds_visualizer_ubo->handle(), 1, &dynamic_offset_main);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_visualizer_graphics_pipeline_layout->handle(), 1, 1, &m_ds_instance_buffer->handle(), 0, nullptr);
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_visualizer_graphics_pipeline_layout->handle(), 2, 1, &m_ds_instance_color_buffer->handle(), 0, nullptr);
+
+    vkCmdPushConstants(cmd_buf->handle(), m_visualizer_graphics_pipeline_layout->handle(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(VkBool32), &noTexture);
 }
 
 void Voxelizer::render_voxels(dw::vk::CommandBuffer::Ptr cmd_buf)
@@ -790,6 +794,7 @@ void Voxelizer::dispatch_visualization_compute_shader(dw::vk::Backend::Ptr backe
 
 void Voxelizer::generate_mip_maps(dw::vk::CommandBuffer::Ptr cmd_buf)
 {
+    DW_SCOPED_SAMPLE("Generate Mip Maps", cmd_buf);
     vkCmdBindPipeline(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_generate_mip_maps_compute_pipeline->handle());
     vkCmdBindDescriptorSets(cmd_buf->handle(), VK_PIPELINE_BIND_POINT_COMPUTE, m_generate_mip_maps_pipeline_layout->handle(), 0, 1, &m_ds_voxel_grid_mip_maps->handle(), 0, nullptr);
     vkCmdDispatch(cmd_buf->handle(), m_voxels_per_side / 8, m_voxels_per_side / 8, m_voxels_per_side / 8);

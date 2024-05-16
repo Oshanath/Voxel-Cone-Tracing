@@ -164,27 +164,27 @@ void ComputeVoxelizer::create_descriptor_sets(dw::vk::Backend::Ptr backend, std:
 
             image_info[0].sampler = dw::Material::common_sampler()->handle();
             // image_info[0].imageView   = mat->m_albedo_idx != -1 ? mat->m_image_views[mat->m_albedo_idx]->handle() : mat->m_default_image_view->handle();
-            image_info[0].imageView   = mat->albedo_image_view()->handle();
+            image_info[0].imageView   = mat->m_albedo_idx != -1 ? mat->m_image_views[mat->m_albedo_idx]->handle() : mat->m_default_image_view->handle();
             image_info[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[0].push_back(image_info[0]);
 
             image_info[1].sampler     = dw::Material::common_sampler()->handle();
-            image_info[1].imageView   = mat->albedo_image_view()->handle();
+            image_info[1].imageView   = mat->m_albedo_idx != -1 ? mat->m_image_views[mat->m_albedo_idx]->handle() : mat->m_default_image_view->handle();
             image_info[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[1].push_back(image_info[1]);
 
             image_info[2].sampler     = dw::Material::common_sampler()->handle();
-            image_info[2].imageView   = mat->albedo_image_view()->handle();
+            image_info[2].imageView   = mat->m_albedo_idx != -1 ? mat->m_image_views[mat->m_albedo_idx]->handle() : mat->m_default_image_view->handle();
             image_info[2].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[2].push_back(image_info[2]);
 
             image_info[3].sampler     = dw::Material::common_sampler()->handle();
-            image_info[3].imageView   = mat->albedo_image_view()->handle();
+            image_info[3].imageView   = mat->m_albedo_idx != -1 ? mat->m_image_views[mat->m_albedo_idx]->handle() : mat->m_default_image_view->handle();
             image_info[3].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[3].push_back(image_info[3]);
 
             image_info[4].sampler     = dw::Material::common_sampler()->handle();
-            image_info[4].imageView   = mat->albedo_image_view()->handle();
+            image_info[4].imageView   = mat->m_albedo_idx != -1 ? mat->m_image_views[mat->m_albedo_idx]->handle() : mat->m_default_image_view->handle();
             image_info[4].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             image_infos[4].push_back(image_info[4]);
 

@@ -81,6 +81,8 @@ bool VCTRenderer::init(int argc, const char* argv[])
     m_mesh_push_constants.occlusionVisualizationEnabled = VK_FALSE;
     m_mesh_push_constants.surfaceOffset                 = 15.719f;
     m_mesh_push_constants.coneCutoff                    = 143.813f;
+    m_mesh_push_constants.noTexture                     = false;
+    m_voxelizer->noTexture = m_mesh_push_constants.noTexture;
 
     return true;
 }
@@ -92,6 +94,11 @@ void VCTRenderer::update(double delta)
     VkCommandBufferBeginInfo begin_info;
     DW_ZERO_MEMORY(begin_info);
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    if (ImGui::Checkbox("No Texture", (bool*)(&m_mesh_push_constants.noTexture)))
+    {
+        m_voxelizer->noTexture = m_mesh_push_constants.noTexture;
+    }
 
     ImGui::Checkbox("Voxelization Visualization", &m_voxelization_visualization_enabled);
 
@@ -452,13 +459,30 @@ bool VCTRenderer::load_object(std::string filename)
     return m_meshes[m_meshes.size() - 1] != nullptr;
 }
 
+enum Model
+{
+    SPONZA, DRAGON, STATUE
+};
+
 bool VCTRenderer::load_objects()
 {
     std::vector<bool> results;
-    results.push_back(load_object("models/sponza/Sponza.gltf"));
-    // results.push_back(load_object("models/dragon.fbx"));
-    //results.push_back(load_object("models/statue.fbx"));
-    // results.push_back(load_object("models/teapot.fbx"));
+    Model             model = SPONZA;
+
+    if (model == SPONZA)
+    {
+        results.push_back(load_object("models/sponza/Sponza.gltf"));
+    }
+    else if (model == DRAGON)
+    {
+        results.push_back(load_object("models/dragon.glb"));
+        objects[objects.size() - 1].scale = 10.0f;
+    }
+    else if (model == STATUE)
+    {
+        results.push_back(load_object("models/statue.glb"));
+        objects[objects.size() - 1].scale = 10.0f;
+    }
 
     for (bool result : results) {
         if (!result)
@@ -558,6 +582,9 @@ void VCTRenderer::revoxelize(int resolution)
         vkDeviceWaitIdle(m_vk_backend->device());
         m_voxelizer.reset();
         create_voxelizer();
+        m_graphics_pipeline_main.reset();
+        create_main_pipeline_state();
+        
     }
 }
 
@@ -569,6 +596,9 @@ void VCTRenderer::revoxelize(VoxelizationType type)
         vkDeviceWaitIdle(m_vk_backend->device());
         m_voxelizer.reset();
         create_voxelizer();
+        m_graphics_pipeline_main.reset();
+        create_main_pipeline_state();
+        
     }
 }
 
@@ -632,6 +662,7 @@ void VCTRenderer::render(dw::vk::CommandBuffer::Ptr cmd_buf)
 
     if (m_voxelization_visualization_enabled)
     {
+        m_voxelizer->noTexture = m_mesh_push_constants.noTexture;
         m_voxelizer->begin_render_visualizer(cmd_buf, m_vk_backend);
         DW_SCOPED_SAMPLE("Visualization", cmd_buf);
         m_voxelizer->render_voxels(cmd_buf);
