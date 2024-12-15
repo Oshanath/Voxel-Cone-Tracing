@@ -4,7 +4,11 @@
 
 - Find the short paper written on the findings of this research project and the explanation of the algorithm and the methodology [here](https://drive.google.com/file/d/1CKZfmaXiU7Hj4zT_atpUx4u_88u7LkUX/view?usp=sharing).
 
+- Find the demo video [here](https://youtu.be/pnq1g1u1nTk)
+
 - To run the program, recursively clone the repository and build and run using CMake.
+
+- To load models, download and extract [this](https://drive.google.com/file/d/12P3SfXWZ04OeYo2ctPHXmsAOS7CF14az/view?usp=sharing) folder to the `bin` directory. The models are now in `bin/models`. Then change the source code in the function `VCTRenderer::load_objects()` in the file `VCTRenderer.cpp`.
 
 ## Features
 All the following features can be turned on and off using the ImGUI interface.
